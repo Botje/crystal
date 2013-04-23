@@ -11,8 +11,8 @@ import qualified Text.Parsec.Token as T
 
 import Crystal.AST
 
-hashChar =     (char 'f' >> return (LitBool False))
-           <|> (char 't' >> return (LitBool True))
+hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
+           <|> (char 't' >> whiteSpace >> return (LitBool True))
 
 literal = try number
           <|> (stringLiteral >>= return . LitString)
