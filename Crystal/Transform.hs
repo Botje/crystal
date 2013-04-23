@@ -18,7 +18,7 @@ import Crystal.Seq
 import Crystal.Pretty
 
 transformC :: Expr -> Expr
-transformC ast = toANF $ ast
+transformC ast = flattenLets . toANF $ ast
 
 spy ast = trace (pretty ast ++ "\n=============\n") ast
 
@@ -44,3 +44,7 @@ toANF expr = evalState (go expr return) 1000
         goF (x:xs) args k | isSimple x = goF xs (x:args) k
                           | (Appl _ _) <- x = next "tmp-" >>= \var -> go x $ \x_ -> return . Let [(var, x_)] =<< goF xs (Ref var:args) k
                           | otherwise  = go x $ \x_ -> goF xs (x_:args) k
+
+flattenLets = transform f
+  where f (Let bnds bod) | length bnds > 1 = foldr (\bnd bod -> Let [bnd] bod) bod bnds
+        f x = x
