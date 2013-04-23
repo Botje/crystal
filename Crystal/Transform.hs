@@ -17,46 +17,60 @@ import Crystal.AST
 import Crystal.Seq
 import Crystal.Pretty
 
-transformC :: Expr -> Expr
-transformC ast = flattenLets . removeSimpleLets . toANF $ ast
+transformC :: Expr Label -> Expr Label
+transformC ast = removeSimpleLets . toANF . flattenLets $ ast
 
 spy ast = trace (pretty ast ++ "\n=============\n") ast
 
-isSimple Lit{} = True
-isSimple Ref{} = True
-isSimple Lambda{} = True
+isSimple (Expr _ Lit{}) = True
+isSimple (Expr _ Ref{}) = True
+isSimple (Expr _ Lambda{}) = True
 isSimple _ = False
 
-toANF expr = evalState (go expr return) 1000
-  where go :: Expr -> (Expr -> State Int Expr) -> State Int Expr
-        go (Lit x) k = k (Lit x)
-        go (Ref r) k = k (Ref r)
-        go (Lambda ids bod) k = do body_ <- go bod return
-                                   k $ Lambda ids body_
-        go (Begin []) k  = error "Empty begin"
-        go (Begin [x])  k = go x k
-        go (Begin (x:xs)) k = go x $ \_ -> go (Begin xs) k
-        go (If cond cons alt) k =
+toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ start)
+  where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
+        go e@(Expr l (Lit x)) k = k e
+        go e@(Expr l (Ref r)) k = k e
+        go (Expr l (Lambda ids bod)) k = do body_ <- go bod return
+                                            k (Expr l (Lambda ids body_))
+        go (Expr l (Begin [])) k  = error "Empty begin"
+        go (Expr l (Begin [x]) ) k = go x k
+        go (Expr l (Begin (x:xs))) k = go x $ \_ -> go (Expr l (Begin xs)) k
+        go (Expr l (If cond cons alt)) k =
           go cond $ \cond_ -> do cons_ <- (go cons return)
                                  alt_ <- (go alt return)
-                                 k $ If cond_ cons_ alt_
-        go (Let [] bod) k = go bod k
-        go (Let ((name,expr):bnds) bod) k = go expr $ \expr_ -> k . Let [(name, expr_)] =<< go (Let bnds bod) return
-        go (LetRec bnds bod) k = k . LetRec bnds =<< go bod return
-        go (Appl f args) k = go f $ \f_ ->
-                                goF args [] $ \args_ ->
-                                  do var <- next "tmp-"
-                                     rest <- k (Ref var)
-                                     return $ Let [(var, Appl f_ args_)] rest
+                                 k (Expr l $ If cond_ cons_ alt_)
+        go (Expr l (Let [(name,expr)] bod)) k =
+          go expr $ \expr_ -> do body_ <- go bod return
+                                 k (Expr l $ Let [(name, expr_)] body_)
+        go (Expr l (LetRec bnds bod)) k = k . Expr l . LetRec bnds =<< go bod return
+        go (Expr l (Appl f args)) k =
+          go f $ \f_ ->
+            goF args [] $ \args_ ->
+              do var <- next "tmp-"
+                 labLet <- nextSeq
+                 labRef <- nextSeq
+                 rest <- k (Expr labRef $ Ref var)
+                 return $ Expr labLet $ Let [(var, (Expr l $ Appl f_ args_))] rest
 
         goF [] args k = k (reverse args)
         goF (x:xs) args k | isSimple x = goF xs (x:args) k
                           | otherwise  = go x $ \x_ -> goF xs (x_:args) k
 
-removeSimpleLets = transform f
-  where f (Let [(bnd, app)] bod) | bod == Ref bnd = app
+removeSimpleLets :: Expr Label -> Expr Label
+removeSimpleLets = transformBi f
+  where f :: Expr Label -> Expr Label
+        f (Expr _ (Let [(bnd, app)] (Expr _ (Ref bnd')))) | bnd == bnd' = app
         f x = x
 
-flattenLets = transform f
-  where f (Let bnds bod) | length bnds > 1 = foldr (\bnd bod -> Let [bnd] bod) bod bnds
-        f x = x
+updateRootLabel :: Expr Label -> State Label (Expr Label)
+updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
+
+flattenLets expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
+  where f :: Expr Label -> State Label (Expr Label)
+        f (Expr l (Let [] bod)) = return bod
+        f (Expr l (Let bnds bod)) | length bnds > 1 =
+          do labels <- mapM (const nextSeq) bnds
+             let body_ = foldr (\(lab, bnd) body -> Expr lab (Let [bnd] body)) bod $ zip labels bnds
+             return body_
+        f x = return x

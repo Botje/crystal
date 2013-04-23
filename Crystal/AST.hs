@@ -12,6 +12,7 @@ import Data.List
 
 type Ident = String -- [a-z][a-zA-Z0-9]*
 type TName = String -- [A-Z][a-zA-Z0-9]*
+type Label = Int
 
 data LitVal = LitChar   Char
             | LitString String
@@ -20,28 +21,29 @@ data LitVal = LitChar   Char
             | LitBool   Bool
               deriving (Show, Read, Ord, Eq, Data, Typeable)
 
-data Expr = Lit    LitVal
-          | Ref    Ident
-          | Appl   Expr [Expr]
-          | If     Expr Expr Expr
-          | Let    [(Ident, Expr)] Expr
-          | LetRec [(Ident, Expr)] Expr
-          | Lambda [Ident] Expr
-          | Begin  [Expr]
-            deriving (Show, Read, Ord, Eq, Data, Typeable)
+data Expr a = Expr a (InExpr (Expr a)) deriving (Show, Read, Ord, Eq, Data, Typeable)
+data InExpr e = Lit    LitVal
+              | Ref    Ident
+              | Appl   e [e]
+              | If     e e e
+              | Let    [(Ident, e)] e
+              | LetRec [(Ident, e)] e
+              | Lambda [Ident] e
+              | Begin  [e]
+                deriving (Show, Read, Ord, Eq, Data, Typeable)
 
-freeVars :: Expr -> [Ident]
+freeVars :: Expr a -> [Ident]
 freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
-  where fv (Lit _)            = return ()
-        fv (Ref r)            = check r
-        fv (Appl _ args)      = forM_ args fv
-        fv (Lambda ids bod)   = localWith ids $ fv bod
-        fv (Begin exp)        = forM_ exp fv
-        fv (If cond cons alt) = mapM_ fv [cond, cons, alt]
-        fv (Let bnds bod)     = do forM_ bnds (fv . snd)
-                                   localWith (map fst bnds) $ fv bod
-        fv (LetRec bnds bod)  = do forM_ bnds (fv . snd)
-                                   localWith (map fst bnds) $ fv bod
+  where fv (Expr _ (Lit _))            = return ()
+        fv (Expr _ (Ref r))            = check r
+        fv (Expr _ (Appl _ args))      = forM_ args fv
+        fv (Expr _ (Lambda ids bod))   = localWith ids $ fv bod
+        fv (Expr _ (Begin exp))        = forM_ exp fv
+        fv (Expr _ (If cond cons alt)) = mapM_ fv [cond, cons, alt]
+        fv (Expr _ (Let bnds bod))     = do forM_ bnds (fv . snd)
+                                            localWith (map fst bnds) $ fv bod
+        fv (Expr _ (LetRec bnds bod))  = do forM_ bnds (fv . snd)
+                                            localWith (map fst bnds) $ fv bod
 
         localWith ds = local (union ds)
         check r = do c <- asks $ elem r

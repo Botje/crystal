@@ -1,3 +1,4 @@
+{-#LANGUAGE FlexibleContexts #-}
 module Crystal.Parser (parseCrystal) where
 
 import Control.Monad
@@ -10,6 +11,10 @@ import Text.Parsec.Prim
 import qualified Text.Parsec.Token as T
 
 import Crystal.AST
+
+makeExpr ie = do s <- getState
+                 putState (succ s)
+                 return $ Expr s ie
 
 hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
@@ -26,27 +31,27 @@ number = do mul <- option 1 (char '-' >> return (-1))
                  Right f -> return . LitFloat . (*mul) $ f
 
 sexp =     (reserved "begin" >> exprs)
-       <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) exprs)
-       <|> (reserved "let" >> parens (many (parens (liftM2 (,) ident expr))) >>= \bind -> exprs >>= return . Let bind)
+       <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) exprs >>= makeExpr)
+       <|> (reserved "let" >> parens (many (parens (liftM2 (,) ident expr))) >>= \bind -> exprs >>= makeExpr . Let bind)
        <|> (reserved "if" >> if')
-       <|> (liftM2 (Appl) expr (many expr))
+       <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
 
 if' = do cons <- expr
          cond <- expr
-         alt  <- expr <|> return (Lit $ LitInt 0)
-         return $ If cons cond alt
+         alt  <- expr <|> makeExpr (Lit $ LitInt 0)
+         makeExpr $ If cons cond alt
   <?> "if"
 
-expr =     (literal >>= return . Lit)
-       <|> (ident >>= return . Ref)
+expr =     (literal >>= makeExpr . Lit)
+       <|> (ident >>= makeExpr . Ref)
        <|> parens sexp
        <?> "expression"
      
 exprs = many1 expr >>= \es ->
         case es of
           [e] -> return e
-          _   -> return (Begin es)
+          _   -> makeExpr (Begin es)
   <?> "function body"
 
 decl = try (parens ((reserved "define" >> (fundecl <|> vardecl))))
@@ -54,8 +59,8 @@ decl = try (parens ((reserved "define" >> (fundecl <|> vardecl))))
 
 fundecl = do
   name:args <- parens (many1 ident)
-  body <- exprs
-  return (name, Lambda args body)
+  body <- makeExpr . Lambda args =<< exprs
+  return (name, body)
   <?> "function declaration"
 
 vardecl = do
@@ -64,15 +69,16 @@ vardecl = do
   return $ (name, val)
   <?> "variable declaration"
 
+program :: Parsec String Label (Expr Label)
 program = do whiteSpace 
              decls <- many decl 
              e <- expr
              eof 
              case decls of
                   [] -> return e
-                  _  -> return $ LetRec decls e
+                  _  -> makeExpr $ LetRec decls e
 
-parseCrystal = parse program
+parseCrystal = runParser program 1
 
 sexpDef = T.LanguageDef {
     T.commentStart = ""

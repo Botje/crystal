@@ -1,4 +1,4 @@
-{-#LANGUAGE FlexibleContexts #-}
+{-#LANGUAGE FlexibleContexts, TypeOperators #-}
 module Crystal.Type  where
 
 import Control.Monad
@@ -16,6 +16,10 @@ freshTVar = nextSeq
 
 type TVar = Int
 
+data a :*: b = a :*: b deriving (Show, Eq)
+
+type TypedLabel = Label :*: Type
+
 data Type = TInt | TString | TBool
           | Tor [Type]
           | TVar TVar
@@ -25,9 +29,9 @@ data Type = TInt | TString | TBool
           | TAny
             deriving (Show, Eq)
 
-infer :: Expr -> Type
-infer = simplify30 . generate
-  where simplify30 = foldl (.) id $ replicate 30 simplify
+infer :: Expr Label -> Expr TypedLabel
+infer = generate
+--   where simplify30 = foldl (.) id $ replicate 30 simplify
 
 simplify :: Type -> Type
 simplify (Tor ts) | length ts' == 1 = head ts'
@@ -43,36 +47,44 @@ trivial (TFun args_1 TAny) (TFun args_2 _) = length args_1 == length args_2
 trivial x y | x == y = True
 trivial _ _ = False
 
-generate :: Expr -> Type
-generate e = evalState (runReaderT (go e) main_env) 1
-  where go :: Expr -> ReaderT Env (State TVar) Type
-        go (Lit (LitString _)) = return TString
-        go (Lit (LitInt _)) = return TInt
-        go (Lit (LitBool _)) = return TBool
-        go (Ref i) = do Just t <- asks (M.lookup i)
-                        return t
-        go (If cond cons alt) = do t_0 <- go cond
-                                   t_1 <- go cons
-                                   t_2 <- go alt
-                                   let base = TIf TBool t_0
-                                   return . base $ Tor [t_1, t_2]
-        go (Let [(nam, exp)] bod) = do t_1 <- go exp
+getType :: Expr TypedLabel -> Type
+getType (Expr (_ :*: t) _) = t
+
+generate :: Expr Label -> Expr TypedLabel
+generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
+  where goT :: Expr Label -> ReaderT Env (State TVar) (Expr TypedLabel, Type)
+        goT e = go e >>= \e' -> return (e', getType e')
+
+        go :: Expr Label -> ReaderT Env (State TVar) (Expr TypedLabel)
+        go (Expr l e) = case e of
+          (Lit (LitString s)) -> return $ Expr (l :*: TString) (Lit (LitString s))
+          (Lit (LitInt i)) -> return $ Expr (l :*: TInt) (Lit (LitInt i))
+          (Lit (LitBool b)) -> return $ Expr (l :*: TBool) (Lit (LitBool b))
+          (Ref i) -> do Just t <- asks (M.lookup i)
+                        return $ Expr (l :*: t) (Ref i)
+          (If cond cons alt) -> do (e_0, t_0) <- goT cond
+                                   (e_1, t_1) <- goT cons
+                                   (e_2, t_2) <- goT alt
+                                   let t_if = TIf TBool t_0 (Tor [t_1, t_2])
+                                   return $ Expr (l :*: t_if) (If e_0 e_1 e_2)
+          (Let [(nam, exp)] bod) -> do (e_x, t_1) <- goT exp
                                        let t_l = leaves t_1
-                                       t_bod <- local (extend nam t_l) (go bod)
-                                       return $ chain t_1 t_bod
-        go (Lambda args bod) = do a_args <- mapM (const freshTVar) args
-                                  t_bod <- local (extendMany args $ map TVar a_args) (go bod)
-                                  return $ TFun a_args t_bod
-        go (Appl e_f args) = do t_f <- go e_f
-                                t_args <- mapM go args
-                                a_args <- mapM (const freshTVar) args
-                                let base = TIf (TFun a_args TAny) t_f
-                                return . base $ apply t_f t_args
-        -- TODO wrong.
-        go (LetRec [(nam, exp)] bod) = do t_1 <- go exp
+                                       (e_bod, t_bod) <- local (extend nam t_l) (goT bod)
+                                       return $ Expr (l :*: chain t_1 t_bod) (Let [(nam, e_x)] e_bod)
+          (Lambda args bod) -> do a_args <- mapM (const freshTVar) args
+                                  (e_bod, t_bod) <- local (extendMany args $ map TVar a_args) (goT bod)
+                                  return $ Expr (l :*: TFun a_args t_bod) (Lambda args e_bod)
+          (Appl f args) -> do (e_f, t_f) <- goT f
+                              (e_args, t_args) <- unzip `liftM` mapM goT args
+                              a_args <- mapM (const freshTVar) args
+                              let base = TIf (TFun a_args TAny) t_f
+                              let applType = TIf (TFun a_args TAny) t_f (apply t_f t_args)
+                              return $ Expr (l :*: applType) (Appl e_f e_args)
+          -- TODO wrong.
+          (LetRec [(nam, exp)] bod) -> do (e_1, t_1) <- goT exp
                                           let t_l = leaves t_1
-                                          t_bod <- local (extend nam t_l) (go bod)
-                                          return $ chain t_1 t_bod
+                                          (e_bod, t_bod) <- local (extend nam t_l) (goT bod)
+                                          return $ Expr (l :*: chain t_1 t_bod) (LetRec [(nam, e_1)] e_bod)
 
 
 main_env :: Env
