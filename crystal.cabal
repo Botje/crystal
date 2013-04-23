@@ -1,0 +1,14 @@
+name:                crystal
+version:             0.0
+synopsis:            Blame prediction, in Haskell
+description:         <Project description>
+category:            Development
+license:             BSD3
+author:              Dries Harnie
+maintainer:          dharnie@vub.ac.be
+build-Depends:       base,parsec>3,mtl,uniplate,pretty,bytestring,containers,split,syb
+build-type:          Simple
+
+executable:          crystal
+main-is:             Crystal.hs
+ghc-options:         
