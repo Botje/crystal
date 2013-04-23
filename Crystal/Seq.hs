@@ -13,12 +13,10 @@ instance Enum Seq where
   toEnum i = Seq "" i
   fromEnum (Seq s i) = i
 
-nextSeq :: (Show s, Enum s, MonadState s m) => m String
+nextSeq :: (Enum s, MonadState s m) => m s
 nextSeq = do s <- get
              put (succ s)
-             return $ show s
+             return s
 
 next :: (Show s, Enum s, MonadState s m) => String -> m String
-next pre = do s <- get
-              put (succ s)
-              return (pre ++ show s)
+next pre = nextSeq >>= \s -> return (pre ++ show s)

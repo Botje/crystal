@@ -9,6 +9,7 @@ import Crystal.AST
 import Crystal.Parser
 import Crystal.Pretty
 import Crystal.Transform
+import Crystal.Type
 
 process fname cts =
   case parseCrystal fname cts of
@@ -16,6 +17,7 @@ process fname cts =
        Right ast -> do let ast' = transformC ast
 --                        putStrLn $ show ast'
                        putStrLn $ pretty ast'
+                       putStrLn $ show $ infer ast'
                        return ()
 
 main = do args <- getArgs
