@@ -1,1 +1,1 @@
-(let ((x 5)) (if (= (+ x 3) 1) x (if (= x 2) "boe" #f)))
+(lambda (z) (let ((x 5)) (if (= (+ x 3) 1) (+ z 1) (if (= x 2) "boe" #f))))
