@@ -112,10 +112,13 @@ type Env = M.Map Ident TypedLabel
 
 main_env :: Env
 main_env = M.fromList [
-    "=" --> LPrim "=" :*: TFun [0,1] TBool,
-    "+" --> LPrim "+" :*: TFun [0,1] (TIf (LPrim "+", LVar 0) TInt (TVar 0) (TIf (LPrim "+", LVar 1) TInt (TVar 1) TInt))
-  ] where (-->) = (,)
+    "=" --> \this -> TFun [0,1] TBool,
+    "+" --> TFun [0,1] . require [(TInt,0), (TInt, 1)] TInt,
+    "string-append" --> TFun [0,1] . require [(TString,0), (TString,1)] TString
+  ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
+          require tests return blame = foldr (f blame) return tests
+          f blame (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
 
 
 extend :: Ident -> TypedLabel -> Env -> Env
