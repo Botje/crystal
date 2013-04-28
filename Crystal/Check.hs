@@ -68,6 +68,7 @@ reify :: Check -> Expr TLabel -> Expr TLabel
 reify Cnone e = e
 reify checks e = appl "check" [reify' checks, e]
   where reify' :: Check -> Expr TLabel
+        reify' (Cnone) = syn (Lit (LitBool True))
         reify' (Cor cs) = appl "or" $ map reify' cs
         reify' (Cand c cs) = appl "and" [reify' c, reify' cs]
         reify' (Check blame prim cause) = appl (test prim) [syn $ toExpr cause, syn $ toBlame blame]
@@ -75,6 +76,7 @@ reify checks e = appl "check" [reify' checks, e]
                 test TString    = "string?"
                 test TBool      = "boolean?"
                 test (TFun _ _) = "function?"
+
         syn e = Expr LSyn e
         appl f args = syn (Appl (syn $ Ref f) args)
         toExpr (Left lit) = Lit lit
