@@ -34,9 +34,10 @@ introduceChecks expr = go expr
   where go (Expr (l :*: t) e) =
           let simply = Expr (l :*: Cnone) in
           case e of 
-               Appl op args         -> Expr (l :*: typeToChecks labLookup t) (Appl (go op) args')
+               Appl op args         -> Expr (l :*: checks) (Appl (go op) args')
                  where labLookup l = head [ litOrIdent e | (Expr (l' :*: _) e) <- args', l == l' ]
                        args' = map go args
+                       checks = simplifyC (typeToChecks labLookup t)
                        litOrIdent (Ref r) = Right r
                        litOrIdent (Lit l) = Left l
                Lit lit              -> simply (Lit lit)
@@ -49,15 +50,9 @@ introduceChecks expr = go expr
 
 typeToChecks :: (TLabel -> Either LitVal Ident) -> Type -> Check
 typeToChecks look (TIf (blame, cause) prim var rest) =
-  let checks = typeToChecks look rest in
-  case checks of 
-       Cnone -> Check blame prim (look cause) 
-       _     -> Cand (Check blame prim (look cause)) checks
+  Cand (Check blame prim (look cause)) $ typeToChecks look rest
 typeToChecks look (Tor types) =
-  let checks = nub $ map (typeToChecks look) types in
-  case checks of
-       [x] -> x
-       _ -> Cor checks
+  Cor $ map (typeToChecks look) types
 typeToChecks look _ = Cnone
 
 
