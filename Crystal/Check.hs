@@ -1,6 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Check where
 
+import Control.Lens
 import Data.List
 import Data.Generics
 import Data.Generics.Biplate
@@ -16,8 +17,14 @@ data Check = Cnone
 
 type CheckedLabel = TLabel :*: Check
 
-getCheck :: Expr CheckedLabel -> Check
-getCheck (Expr (l :*: c) _) = c
+ann :: Simple Lens (Expr a) a
+ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)
+
+_check :: Simple Lens CheckedLabel Check
+_check op (l :*: c) = fmap (\c' -> l :*: c') (op c)
+
+annCheck :: Simple Lens (Expr CheckedLabel) Check
+annCheck = ann._check
 
 addChecks :: Expr TypedLabel -> Expr TLabel
 addChecks = reifyChecks . moveChecksUp . introduceChecks
@@ -54,9 +61,6 @@ typeToChecks look (Tor types) =
 typeToChecks look _ = Cnone
 
 
-deconE :: Expr CheckedLabel -> (Check, Check -> Expr CheckedLabel)
-deconE (Expr (l :*: c) e) = (c, \c' -> Expr (l :*: c') e)
-
 partitionC :: Ident -> Check -> (Check, Check)
 partitionC i Cnone = (Cnone, Cnone)
 partitionC i (Cand c1 c2) = 
@@ -92,14 +96,14 @@ moveChecksUp = transformBi f
                Appl op args         -> simple
                Lit lit              -> simple
                Ref r                -> simple
-               If cond cons alt     -> Expr (l :*: Cor [getCheck cons, getCheck alt]) e
-               Let [(id, e)] bod    -> Expr (l :*: Cand e_c checksNoId) $ Let [(id, e_mod Cnone)] (bod_mod checksId)
-                   where (e_c, e_mod)     = deconE e
-                         (bod_c, bod_mod) = deconE bod
-                         (checksId, checksNoId) = partitionC id bod_c
+               If cond cons alt     -> Expr (l :*: Cor [cons ^. annCheck , alt ^. annCheck]) e
                LetRec [(id, e)] bod -> simple
                Lambda ids bod       -> simple
                Begin es             -> simple
+               Let [(id, e)] bod    ->
+                 Expr (l :*: Cand e_c checksNoId) $ Let [(id, set annCheck Cnone e)] (set annCheck checksId bod)
+                   where (e_c, bod_c)   = (e ^. annCheck, bod ^. annCheck)
+                         (checksId, checksNoId) = partitionC id bod_c
 
 
 
