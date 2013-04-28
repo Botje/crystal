@@ -17,7 +17,8 @@ process fname cts =
        Right ast -> do let ast' = transformC ast
 --                        putStrLn $ show ast'
                        putStrLn $ pretty ast'
-                       putStrLn $ show $ infer ast'
+                       putStrLn "==================="
+                       putStrLn $ pretty $ infer ast'
                        return ()
 
 main = do args <- getArgs
