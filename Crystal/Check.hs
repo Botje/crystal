@@ -16,8 +16,11 @@ data Check = Cnone
 
 type CheckedLabel = TLabel :*: Check
 
+getCheck :: Expr CheckedLabel -> Check
+getCheck (Expr (l :*: c) _) = c
+
 addChecks :: Expr TypedLabel -> Expr TLabel
-addChecks = reifyChecks . introduceChecks
+addChecks = reifyChecks . moveChecksUp . introduceChecks
 
 introduceChecks :: Expr TypedLabel -> Expr CheckedLabel
 introduceChecks expr = go expr
@@ -50,10 +53,60 @@ typeToChecks look (Tor types) =
        _ -> Cor checks
 typeToChecks look _ = Cnone
 
+
+deconE :: Expr CheckedLabel -> (Check, Check -> Expr CheckedLabel)
+deconE (Expr (l :*: c) e) = (c, \c' -> Expr (l :*: c') e)
+
+partitionC :: Ident -> Check -> (Check, Check)
+partitionC i Cnone = (Cnone, Cnone)
+partitionC i (Cand c1 c2) = 
+  let (with1, without1) = partitionC i c1
+      (with2, without2) = partitionC i c2 in
+      (simplifyC (Cand with1 with2), simplifyC (Cand without1 without2))
+partitionC i (Cor checks) = 
+  let (withs, withouts) = unzip $ map (partitionC i) checks in
+      (simplifyC (Cor withs), simplifyC (Cor withouts))
+partitionC i c@(Check blame prim litOrIdent)
+  | litOrIdent == Right i = (c, Cnone)
+  | otherwise             = (Cnone, c)
+
+simplifyC :: Check -> Check
+simplifyC (Cand c1 c2) = 
+  case (c1, c2) of
+       (Cnone, _) -> c2
+       (_, Cnone) -> c1
+       (_, _)     -> Cand c1 c2
+  where (c1', c2') = (simplifyC c1, simplifyC c2)
+simplifyC (Cor cs) =
+  case cs' of
+       [c] -> c
+       _   -> Cor cs'
+  where cs' = nub $ map simplifyC cs
+simplifyC c = c
+
+moveChecksUp :: Expr CheckedLabel -> Expr CheckedLabel
+moveChecksUp = transformBi f
+  where f :: Expr CheckedLabel -> Expr CheckedLabel
+        f simple@(Expr (l :*: checks) e) =
+          case e of
+               Appl op args         -> simple
+               Lit lit              -> simple
+               Ref r                -> simple
+               If cond cons alt     -> Expr (l :*: Cor [getCheck cons, getCheck alt]) e
+               Let [(id, e)] bod    -> Expr (l :*: Cand e_c checksNoId) $ Let [(id, e_mod Cnone)] (bod_mod checksId)
+                   where (e_c, e_mod)     = deconE e
+                         (bod_c, bod_mod) = deconE bod
+                         (checksId, checksNoId) = partitionC id bod_c
+               LetRec [(id, e)] bod -> simple
+               Lambda ids bod       -> simple
+               Begin es             -> simple
+
+
+
 reifyChecks :: Expr CheckedLabel -> Expr TLabel
 reifyChecks expr = go expr
   where go (Expr (l :*: checks) e) = 
-          let simply e = reify checks (Expr l e) in
+          let simply e = reify (simplifyC checks) (Expr l e) in
               case e of
                  Appl op args         -> simply (Appl (go op) (map go args))
                  Lit lit              -> simply (Lit lit)
