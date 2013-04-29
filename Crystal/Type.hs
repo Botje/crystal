@@ -80,8 +80,8 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
           (Lit (LitString s)) -> return $ Expr (l' :*: TString) (Lit (LitString s))
           (Lit (LitInt i)) -> return $ Expr (l' :*: TInt) (Lit (LitInt i))
           (Lit (LitBool b)) -> return $ Expr (l' :*: TBool) (Lit (LitBool b))
-          (Ref i) -> do Just (_ :*: t) <- asks (M.lookup i)
-                        return $ Expr (l' :*: t) (Ref i)
+          (Ref i) -> do Just (l :*: t) <- asks (M.lookup i)
+                        return $ Expr (l :*: t) (Ref i)
           (If cond cons alt) -> do (e_0, t_0) <- goT cond
                                    (e_1, t_1) <- goT cons
                                    (e_2, t_2) <- goT alt
@@ -113,8 +113,8 @@ type Env = M.Map Ident TypedLabel
 main_env :: Env
 main_env = M.fromList [
     "=" --> \this -> TFun [0,1] TBool,
-    "+" --> TFun [0,1] . require [(TInt,0), (TInt, 1)] TInt,
-    "string-append" --> TFun [0,1] . require [(TString,0), (TString,1)] TString
+    "+" --> TFun [2,3] . require [(TInt,2), (TInt, 3)] TInt,
+    "string-append" --> TFun [4,5] . require [(TString,4), (TString,5)] TString
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
