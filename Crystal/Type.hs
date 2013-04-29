@@ -80,8 +80,10 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
           (Lit (LitString s)) -> return $ Expr (l' :*: TString) (Lit (LitString s))
           (Lit (LitInt i)) -> return $ Expr (l' :*: TInt) (Lit (LitInt i))
           (Lit (LitBool b)) -> return $ Expr (l' :*: TBool) (Lit (LitBool b))
-          (Ref i) -> do Just (l :*: t) <- asks (M.lookup i)
-                        return $ Expr (l :*: t) (Ref i)
+          (Ref i) -> do lt <- asks (M.lookup i)
+                        case lt of
+                          Just (l :*: t) -> return $ Expr (l :*: t) (Ref i)
+                          Nothing -> error ("Unbound variable " ++ show i)
           (If cond cons alt) -> do (e_0, t_0) <- goT cond
                                    (e_1, t_1) <- goT cons
                                    (e_2, t_2) <- goT alt
