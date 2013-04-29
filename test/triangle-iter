@@ -1,0 +1,6 @@
+(define (triangle n res)
+  (if (= n 0)
+	  res
+		(triangle (- n 1) (+ n res))))
+
+(triangle 10 0)
