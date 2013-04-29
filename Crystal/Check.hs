@@ -32,9 +32,10 @@ introduceChecks expr = go expr
   where go (Expr (l :*: t) e) =
           let simply = Expr (l :*: Cnone) in
           case e of 
-               Appl op args         -> Expr (l :*: checks) (Appl (go op) args')
-                 where labLookup l = head [ litOrIdent e | (Expr (l' :*: _) e) <- args', l == l' ]
-                       args' = map go args
+               Appl op args         -> Expr (l :*: checks) (Appl op' args')
+                 where labLookup l =
+                           head [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ]
+                       (op':args') = map go (op:args)
                        checks = simplifyC (typeToChecks labLookup t)
                        litOrIdent (Ref r) = Right r
                        litOrIdent (Lit l) = Left l

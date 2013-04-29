@@ -1,6 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Type  where
 
+import Control.Lens
 import Control.Monad
 import Data.Generics
 import Data.Generics.Biplate
@@ -42,6 +43,7 @@ data Type = TInt | TString | TBool
           | TVar TVar
           | TFun [TVar] Type
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
+          | TAppl Type [TypedLabel]
           | TError
           | TAny
             deriving (Show, Eq, Data, Typeable)
@@ -97,7 +99,7 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
                               e_args <- mapM go args
                               let tvars = [1..length args]
                               let tl_args = map getTypeAndLabel e_args
-                              let applType = TIf (getLabel e_f, l') (TFun tvars TAny) t_f (apply t_f tl_args)
+                              let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
                               return $ Expr (l' :*: applType) (Appl e_f e_args)
           -- TODO wrong.
           (LetRec [(nam, exp)] bod) -> do (e_1, t_1) <- goT exp
@@ -128,9 +130,13 @@ extendMany keys vals env = foldr (uncurry M.insert) env (zip keys vals)
 apply :: Type -> [TypedLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
 apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
-apply (TFun t_args t_bod) a_args | length t_args == length a_args = replace (M.fromList $ zip t_args a_args) t_bod
+apply (TFun t_args t_bod) a_args | length t_args == length a_args = expand (TAppl (TFun t_args t_bod) a_args)
 apply (TFun t_args t_bod) a_args | otherwise = TError
-apply t a_args = TAny
+apply (TVar v) a_args = TAppl (TVar v) a_args
+apply _ a_args = TError
+
+expand (TAppl (TFun t_args t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
+expand typ = typ
 
 chain :: Type -> Type -> Type
 chain (Tor ts) t_c = Tor $ map (flip chain t_c) ts
@@ -149,4 +155,5 @@ replace env (TFun args bod) = TFun args $ replace (extendMany args (map (\v -> L
 replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') (replace env t_1) (replace env t_2) (replace env t_3)
   where l2' = case l2 of LVar tv | Just (l :*: t) <- M.lookup tv env -> l
                          x -> x
+replace env (TAppl fun args) = apply (replace env fun) (map (over _2 (replace env)) args)
 replace env x = x
