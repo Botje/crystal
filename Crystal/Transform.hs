@@ -2,6 +2,7 @@
 module Crystal.Transform (transformC) where
 
 import Control.Arrow
+import Control.Lens
 import Control.Monad
 import Control.Monad.RWS
 import Control.Monad.State
@@ -43,7 +44,10 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
         go (Expr l (Let [(name,expr)] bod)) k =
           go expr $ \expr_ -> do body_ <- go bod return
                                  k (Expr l $ Let [(name, expr_)] body_)
-        go (Expr l (LetRec bnds bod)) k = k . Expr l . LetRec bnds =<< go bod return
+        go (Expr l (LetRec bnds bod)) k = 
+          do bnds_ <- mapM (_2 (flip go return)) bnds
+             bod_ <- go bod return
+             k (Expr l $ LetRec bnds_ bod_)
         go (Expr l (Appl f args)) k =
           go f $ \f_ ->
             goF args [] $ \args_ ->
