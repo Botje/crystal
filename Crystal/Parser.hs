@@ -78,7 +78,7 @@ program = do whiteSpace
                   [] -> return e
                   _  -> makeExpr $ LetRec decls e
 
-parseCrystal = runParser program 1
+parseCrystal = runParser program 1000
 
 sexpDef = T.LanguageDef {
     T.commentStart = ""
