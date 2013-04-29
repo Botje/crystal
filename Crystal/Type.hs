@@ -103,20 +103,26 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
                               let tl_args = map getTypeAndLabel e_args
                               let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
                               return $ Expr (l' :*: applType) (Appl e_f e_args)
-          -- TODO wrong.
-          (LetRec [(nam, exp)] bod) -> do (e_1, t_1) <- goT exp
-                                          let t_l = leaves t_1
-                                          let bod_tl = getLabel e_1 :*:t_l
-                                          (e_bod, t_bod) <- local (extend nam bod_tl) (goT bod)
-                                          return $ Expr (l' :*: chain t_1 t_bod) (LetRec [(nam, e_1)] e_bod)
+          -- TODO multiple bindings.
+          (LetRec [(nam, exp)] bod) -> do var <- freshTVar
+                                          let var_tl = LVar var :*: TVar var
+                                          Expr (e_l :*: TFun abod tbod) _ <- local (extend nam var_tl) (go exp)
+                                          let t_l = simplify $ leaves tbod
+                                          let e_tl = e_l :*: TFun abod t_l
+                                          (e_1', t_1) <- local (extend nam e_tl) (goT exp)
+                                          (e_bod, t_bod) <- local (extend nam e_tl) (goT bod)
+                                          return $ Expr (l' :*: t_bod) (LetRec [(nam, e_1')] e_bod)
 
 type Env = M.Map Ident TypedLabel
 
 main_env :: Env
 main_env = M.fromList [
     "=" --> \this -> TFun [0,1] TBool,
-    "+" --> TFun [2,3] . require [(TInt,2), (TInt, 3)] TInt,
-    "string-append" --> TFun [4,5] . require [(TString,4), (TString,5)] TString
+    "+" --> TFun [2,3] . require [(TInt,2), (TInt,3)] TInt,
+    "string-append" --> TFun [4,5] . require [(TString,4), (TString,5)] TString,
+    "<" --> TFun [6,7] . require [(TInt,6), (TInt,7)] TBool,
+    "*" --> TFun [8,9] . require [(TInt,8), (TInt,9)] TInt,
+    "-" --> TFun [10,11] . require [(TInt,10), (TInt,11)] TInt
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
