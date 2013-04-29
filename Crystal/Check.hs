@@ -7,6 +7,7 @@ import Data.Generics
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Tuple
 import Crystal.Type
 
 data Check = Cnone
@@ -17,11 +18,8 @@ data Check = Cnone
 
 type CheckedLabel = TLabel :*: Check
 
-ann :: Simple Lens (Expr a) a
-ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)
-
 _check :: Simple Lens CheckedLabel Check
-_check op (l :*: c) = fmap (\c' -> l :*: c') (op c)
+_check = _2
 
 annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check

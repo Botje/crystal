@@ -12,14 +12,12 @@ import qualified Data.Map as M
 
 import Crystal.AST
 import Crystal.Seq
+import Crystal.Tuple
 
 freshTVar :: (MonadState TVar m) => m TVar
 freshTVar = nextSeq
 
 type TVar = Int
-
-data a :*: b = a :*: b deriving (Show, Eq, Data, Typeable)
-infix 8 :*:
 
 data TLabel = LSource Int
             | LPrim String

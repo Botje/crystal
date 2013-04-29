@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Crystal.AST where
 
+import Control.Lens
+
 import Data.Generics
 import Data.Generics.PlateData
 
@@ -50,3 +52,5 @@ freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
                      let g = all (=='*') [head r, last r] -- *global* variables are ignored
                      when (not c && not g) $ tell [r]
 
+ann :: Simple Lens (Expr a) a
+ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)
