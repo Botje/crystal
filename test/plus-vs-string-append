@@ -1,0 +1,4 @@
+(lambda (x)
+	(if #t
+		(+ x 1)
+		(string-append x "hallo")))
