@@ -38,7 +38,7 @@ freeVars :: Expr a -> [Ident]
 freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
   where fv (Expr _ (Lit _))            = return ()
         fv (Expr _ (Ref r))            = check r
-        fv (Expr _ (Appl _ args))      = forM_ args fv
+        fv (Expr _ (Appl f args))      = fv f >> forM_ args fv
         fv (Expr _ (Lambda ids bod))   = localWith ids $ fv bod
         fv (Expr _ (Begin exp))        = forM_ exp fv
         fv (Expr _ (If cond cons alt)) = mapM_ fv [cond, cons, alt]
