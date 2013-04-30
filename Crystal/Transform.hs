@@ -7,9 +7,11 @@ import Control.Monad
 import Control.Monad.RWS
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Function
 import Data.Generics
 import Data.List
 import Data.Maybe
+import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Generics.Biplate
 import Debug.Trace
@@ -19,7 +21,7 @@ import Crystal.Seq
 import Crystal.Pretty
 
 transformC :: Expr Label -> Expr Label
-transformC ast = removeSimpleLets . toANF . flattenLets $ ast
+transformC ast = removeSimpleLets . toANF . flattenLets . splitLetRecs $ ast
 
 spy ast = trace (pretty ast ++ "\n=============\n") ast
 
@@ -78,3 +80,29 @@ flattenLets expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootL
              let body_ = foldr (\(lab, bnd) body -> Expr lab (Let [bnd] body)) bod $ zip labels bnds
              return body_
         f x = return x
+
+type Idents = S.Set Ident
+
+splitLetRecs expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
+  where f :: Expr Label -> State Label (Expr Label)
+        f (Expr _ (LetRec bnds bod)) = float fv names
+          where names = S.fromList $ map fst bnds
+                fv = M.fromList $ map (second (\e -> names `S.intersection` S.fromList (freeVars e))) bnds
+                float :: M.Map Ident Idents -> Idents -> State Label (Expr Label)
+                float fv names | S.null names = return bod
+                               | otherwise = do lab <- nextSeq
+                                                let fv' = M.map (`S.difference` gone) fv
+                                                bod <- float fv' (names `S.difference` gone)
+                                                let bnds' = filter (flip S.member gone . fst) bnds
+                                                if null zeroDeps
+                                                   then return $ Expr lab (LetRec bnds' bod)
+                                                   else return $ Expr lab (Let bnds' bod)
+                  where minStar = minimumBy (compare `on` S.size) stars
+                        zeroDeps = [ n | n <- S.toList names, Just s <- return $ M.lookup n fv, S.null s ]
+                        gone = if null zeroDeps then minStar else S.fromList zeroDeps
+                        stars = map (star fv . S.singleton) $ S.toList names
+        f x = return x
+
+star :: M.Map Ident Idents -> Idents -> Idents
+star fv names = if names == names' then names' else star fv names'
+  where names' = names `S.union` S.unions [ s | n <- S.elems names, Just s <- return $ M.lookup n fv ]
