@@ -34,8 +34,17 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) exprs >>= makeExpr)
        <|> (reserved "let" >> parens (many (parens (liftM2 (,) ident expr))) >>= \bind -> exprs >>= makeExpr . Let bind)
        <|> (reserved "if" >> if')
+       <|> (reserved "cond" >> cond)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
+
+cond = do clauses <- many (parens sexp)
+          nestIfs clauses
+  where nestIfs [Expr l (Appl (Expr _ (Ref "else")) es)] = return $ Expr l $ Begin es
+        nestIfs (Expr l (Appl clause body):es) = 
+          do body_ <- makeExpr (Begin body)
+             es_ <- nestIfs es
+             return $ Expr l $ If clause body_ es_
 
 if' = do cons <- expr
          cond <- expr
@@ -89,8 +98,8 @@ sexpDef = T.LanguageDef {
   , T.identLetter  = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
   , T.opStart      = satisfy (\x -> not (isSpace x || isDigit x || x `elem` "$;()"))
   , T.opLetter     = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
-  , T.reservedNames = words "lambda if let letrec begin define"
-  , T.reservedOpNames = words "lambda if let letrec begin define"
+  , T.reservedNames = words "lambda if let letrec begin define cond"
+  , T.reservedOpNames = words "lambda if let letrec begin define cond"
   , T.caseSensitive = False
   }
 
