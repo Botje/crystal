@@ -126,6 +126,7 @@ reify checks e = appl "check" [reify' checks, e]
           where test TInt       = "number?"
                 test TString    = "string?"
                 test TBool      = "boolean?"
+                test TSymbol    = "symbol?"
                 test (TFun _ _) = "function?"
 
         syn e = Expr LSyn e

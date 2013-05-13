@@ -22,6 +22,7 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
 literal = try number
           <|> (stringLiteral >>= return . LitString)
           <|> (char '#' >> hashChar)
+          <|> (char '\'' >> ident >>= return . LitSymbol)
           <?> "literal"
 
 number = do mul <- option 1 (char '-' >> return (-1))

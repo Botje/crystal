@@ -18,6 +18,7 @@ prettyE (Expr l (Lit lit))           = prettyL lit
 
 prettyL (LitChar c)   = text "#" <> text [c]
 prettyL (LitString s) = text "\"" <> text s <> text "\""
+prettyL (LitSymbol s) = text "'" <> text s
 prettyL (LitInt i)    = int (fromIntegral i)
 prettyL (LitFloat f)  = double f
 prettyL (LitBool True) = text "#t"
