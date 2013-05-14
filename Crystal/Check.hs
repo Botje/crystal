@@ -1,7 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Check where
 
-import Control.Lens
+import Control.Lens hiding (transform)
 import Data.List
 import Data.Generics
 import Data.Generics.Biplate
@@ -55,19 +55,6 @@ typeToChecks look (Tor types) =
 typeToChecks look _ = Cnone
 
 
-partitionC :: Ident -> Check -> (Check, Check)
-partitionC i Cnone = (Cnone, Cnone)
-partitionC i (Cand c1 c2) = 
-  let (with1, without1) = partitionC i c1
-      (with2, without2) = partitionC i c2 in
-      (simplifyC (Cand with1 with2), simplifyC (Cand without1 without2))
-partitionC i (Cor checks) = 
-  let (withs, withouts) = unzip $ map (partitionC i) checks in
-      (simplifyC (Cor withs), simplifyC (Cor withouts))
-partitionC i c@(Check blame prim litOrIdent)
-  | litOrIdent == Right i = (c, Cnone)
-  | otherwise             = (Cnone, c)
-
 simplifyC :: Check -> Check
 simplifyC (Cand c1 c2) = 
   case (c1, c2) of
@@ -95,10 +82,13 @@ moveChecksUp = transformBi f
                Lambda ids bod       -> simple
                Begin es             -> simple
                Let [(id, e)] bod    ->
-                 Expr (l :*: Cand e_c checksNoId) $ Let [(id, set annCheck Cnone e)] (set annCheck checksId bod)
-                   where (e_c, bod_c)   = (e ^. annCheck, bod ^. annCheck)
-                         (checksId, checksNoId) = partitionC id bod_c
+                 Expr (l :*: Cand e_c checksNoId) $ Let [(id, set annCheck Cnone e)] bod
+                   where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
+                         checksNoId = simplifyC (Cand e_c (removeChecksOn id bod_c))
 
+removeChecksOn id = transform f
+  where f c@(Check _ _ (Right id')) | id == id' = Cnone
+        f c = c
 
 
 reifyChecks :: Expr CheckedLabel -> Expr TLabel
