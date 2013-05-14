@@ -11,7 +11,7 @@ import Crystal.Tuple
 import Crystal.Type
 
 data Check = Cnone
-           | Cand Check Check
+           | Cand [Check]
            | Cor [Check]
            | Check TLabel Type (Either LitVal Ident)
              deriving (Show, Eq, Data, Typeable)
@@ -49,19 +49,21 @@ introduceChecks expr = go expr
 
 typeToChecks :: (TLabel -> Either LitVal Ident) -> Type -> Check
 typeToChecks look (TIf (blame, cause) prim var rest) =
-  Cand (Check blame prim (look cause)) $ typeToChecks look rest
+  Cand [Check blame prim (look cause), typeToChecks look rest]
 typeToChecks look (Tor types) =
   Cor $ map (typeToChecks look) types
 typeToChecks look _ = Cnone
 
 
 simplifyC :: Check -> Check
-simplifyC (Cand c1 c2) = 
-  case (c1', c2') of
-       (Cnone, _) -> c2'
-       (_, Cnone) -> c1'
-       (_, _)     -> Cand c1' c2'
-  where (c1', c2') = (simplifyC c1, simplifyC c2)
+simplifyC c@(Cand cs) =
+  case cs' of
+       [c] -> c
+       [] -> Cnone
+       _ -> Cand cs'
+  where cs' = simplifyMerge c
+        simplifyMerge (Cand cs) = nub $ filter (/= Cnone) $ concatMap simplifyMerge cs
+        simplifyMerge c = [simplifyC c]
 simplifyC (Cor cs) =
   case cs' of
        [c] -> c
@@ -82,9 +84,9 @@ moveChecksUp = transformBi f
                Lambda ids bod       -> simple
                Begin es             -> simple
                Let [(id, e)] bod    ->
-                 Expr (l :*: Cand e_c checksNoId) $ Let [(id, set annCheck Cnone e)] bod
+                 Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
-                         checksNoId = simplifyC (Cand e_c (removeChecksOn id bod_c))
+                         checksNoId = simplifyC (Cand [e_c, removeChecksOn id bod_c])
 
 removeChecksOn id = transform f
   where f c@(Check _ _ (Right id')) | id == id' = Cnone
@@ -111,7 +113,7 @@ reify checks e = appl "check" [reify' checks, e]
   where reify' :: Check -> Expr TLabel
         reify' (Cnone) = syn (Lit (LitBool True))
         reify' (Cor cs) = appl "or" $ map reify' cs
-        reify' (Cand c cs) = appl "and" [reify' c, reify' cs]
+        reify' (Cand cs) = appl "and" $ map reify' cs
         reify' (Check blame prim cause) = appl (test prim) [syn $ toExpr cause, syn $ toBlame blame]
           where test TInt       = "number?"
                 test TString    = "string?"
