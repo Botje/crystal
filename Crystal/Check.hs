@@ -57,10 +57,10 @@ typeToChecks look _ = Cnone
 
 simplifyC :: Check -> Check
 simplifyC (Cand c1 c2) = 
-  case (c1, c2) of
-       (Cnone, _) -> c2
-       (_, Cnone) -> c1
-       (_, _)     -> Cand c1 c2
+  case (c1', c2') of
+       (Cnone, _) -> c2'
+       (_, Cnone) -> c1'
+       (_, _)     -> Cand c1' c2'
   where (c1', c2') = (simplifyC c1, simplifyC c2)
 simplifyC (Cor cs) =
   case cs' of
