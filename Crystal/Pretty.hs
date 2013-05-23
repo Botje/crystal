@@ -22,7 +22,7 @@ prettyE (Expr l (Begin body))        = appl (text "begin" : map prettyE body)
 prettyE (Expr l (Lit lit))           = prettyL lit
 
 prettyL (LitChar c)   = text "#" <> text [c]
-prettyL (LitString s) = text "\"" <> text s <> text "\""
+prettyL (LitString s) = text "\"" <> escape s <> text "\""
 prettyL (LitSymbol s) = text "'" <> text s
 prettyL (LitInt i)    = int (fromIntegral i)
 prettyL (LitFloat f)  = double f
@@ -30,3 +30,5 @@ prettyL (LitBool True) = text "#t"
 prettyL (LitBool False) = text "#f"
 
 appl (x:xs) = parens (x <+> sep xs)
+
+escape = text . concatMap (\x -> if x == '\n' then "\\n" else [x])
