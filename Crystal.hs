@@ -8,6 +8,7 @@ import Control.Monad
 import Crystal.AST
 import Crystal.Check
 import Crystal.Parser
+import Crystal.Post
 import Crystal.Pretty
 import Crystal.Transform
 import Crystal.Type
@@ -19,7 +20,7 @@ process fname cts =
 --                        putStrLn $ show ast'
                        putStrLn $ pretty ast'
                        putStrLn "==================="
-                       putStrLn $ pretty $ addChecks $ infer ast'
+                       putStrLn $ prettyD $ postprocess $ addChecks $ infer ast'
                        return ()
 
 main = do args <- getArgs

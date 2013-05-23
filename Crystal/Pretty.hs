@@ -1,4 +1,4 @@
-module Crystal.Pretty (pretty) where
+module Crystal.Pretty (pretty, prettyD) where
 
 import Data.List
 import Text.PrettyPrint
@@ -6,6 +6,11 @@ import Text.PrettyPrint
 import Crystal.AST
 
 pretty expr = renderStyle style{lineLength=150} $ prettyE expr
+prettyD (decls, expr) =
+  renderStyle style{lineLength=150} $
+    vcat (map toDecl decls) $+$ prettyE expr
+  where toDecl (id, Expr l (Lambda args body)) = appl [text "define", parens (sep $ map text (id:args)), prettyE body]
+        toDecl (id, value)                     = appl [text "define", text id, prettyE value]
 
 prettyE (Expr l (Ref ident))         = text ident
 prettyE (Expr l (Appl e args))       = appl $ map prettyE (e:args)
