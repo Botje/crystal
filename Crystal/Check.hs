@@ -67,7 +67,8 @@ simplifyC c@(Cand cs) =
 simplifyC (Cor cs) =
   case cs' of
        [c] -> c
-       _   -> Cor cs'
+       _ | Cnone `elem` cs' -> Cnone
+       _ -> Cor cs' 
   where cs' = nub $ map simplifyC cs
 simplifyC c = c
 
