@@ -72,6 +72,24 @@ simplifyC (Cor cs) =
   where cs' = nub $ map simplifyC cs
 simplifyC c = c
 
+mergeC Cnone     check     = check
+mergeC check     Cnone     = check
+mergeC (Cor  as) check     = Cand [Cor as, check]
+mergeC (Cand as) check = 
+  case check of 
+       Cand bs -> foldl mergeC (Cand as) bs
+       Cor bs  -> Cand (as ++ [Cor bs])
+       c@(Check l t (Left lit)) -> Cand (as ++ [c])
+       c@(Check l t (Right id)) -> if any (checks t id) as
+                                      then Cand as
+                                      else Cand (as ++ [c])
+mergeC checkA    checkB    = mergeC (Cand [checkA]) checkB
+
+checks t id (Check _ t' (Right id')) = t == t' && id == id'
+checks t id c = False
+
+
+
 moveChecksUp :: Expr CheckedLabel -> Expr CheckedLabel
 moveChecksUp = transformBi f
   where f :: Expr CheckedLabel -> Expr CheckedLabel
@@ -80,14 +98,14 @@ moveChecksUp = transformBi f
                Appl op args         -> simple
                Lit lit              -> simple
                Ref r                -> simple
-               If cond cons alt     -> Expr (l :*: Cor [cons ^. annCheck , alt ^. annCheck]) e
+               If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck])) e
                LetRec [(id, e)] bod -> simple
                Lambda ids bod       -> simple
                Begin es             -> simple
                Let [(id, e)] bod    ->
                  Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
-                         checksNoId = simplifyC (Cand [e_c, removeChecksOn id bod_c])
+                         checksNoId = mergeC e_c (simplifyC $ removeChecksOn id bod_c)
 
 removeChecksOn id = transform f
   where f c@(Check _ _ (Right id')) | id == id' = Cnone
