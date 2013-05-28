@@ -138,6 +138,7 @@ reify checks e = appl "check" [reify' checks, e]
                 test TString    = "string?"
                 test TBool      = "boolean?"
                 test TSymbol    = "symbol?"
+                test TVoid      = "void?"
                 test (TFun _ _) = "function?"
 
         syn e = Expr LSyn e

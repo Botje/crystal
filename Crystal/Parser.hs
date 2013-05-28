@@ -39,9 +39,12 @@ sexp =     (reserved "begin" >> exprs)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
 
+makeVoid = makeExpr $ Lit (LitVoid)
+
 cond = do clauses <- many (parens sexp)
           nestIfs clauses
-  where nestIfs [Expr l (Appl (Expr _ (Ref "else")) es)] = return $ Expr l $ Begin es
+  where nestIfs [] = makeVoid
+        nestIfs [Expr l (Appl (Expr _ (Ref "else")) es)] = return $ Expr l $ Begin es
         nestIfs (Expr l (Appl clause body):es) = 
           do body_ <- makeExpr (Begin body)
              es_ <- nestIfs es
@@ -49,7 +52,7 @@ cond = do clauses <- many (parens sexp)
 
 if' = do cons <- expr
          cond <- expr
-         alt  <- expr <|> makeExpr (Lit $ LitInt 0)
+         alt  <- expr <|> makeVoid
          makeExpr $ If cons cond alt
   <?> "if"
 

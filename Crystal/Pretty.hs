@@ -28,6 +28,7 @@ prettyL (LitInt i)    = int (fromIntegral i)
 prettyL (LitFloat f)  = double f
 prettyL (LitBool True) = text "#t"
 prettyL (LitBool False) = text "#f"
+prettyL (LitVoid) = text "#<void>"
 
 appl (x:xs) = parens (x <+> sep xs)
 
