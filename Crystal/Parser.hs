@@ -1,6 +1,7 @@
 {-#LANGUAGE FlexibleContexts #-}
 module Crystal.Parser (parseCrystal) where
 
+import Control.Lens
 import Control.Monad
 import Control.Monad.Identity
 import Data.Char
@@ -15,6 +16,10 @@ import Crystal.AST
 makeExpr ie = do s <- getState
                  putState (succ s)
                  return $ Expr s ie
+
+fresh p = do s <- getState
+             putState (succ s)
+             return (p ++ show s)
 
 makeAppl name args = do ref <- makeExpr (Ref name)
                         makeExpr $ Appl ref args
@@ -39,6 +44,7 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "let" >> let')
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
+       <|> (reserved "do" >> do')
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
 
@@ -78,6 +84,32 @@ namedLet = do name <- ident
 let' =     namedLet
        <|> simpleLet 
        <?> "let expression"
+
+do' = do iterspecs <- parens (many iterspec)
+         (check, result) <- parens terminate
+         fnBody <- exprs
+         let vars  = map (^. _1) iterspecs
+         let vals  = map (^. _2) iterspecs
+         let steps = map (^. _3) iterspecs
+         name <- fresh "do-"
+         recCall <- makeAppl name steps
+         initCall <- makeAppl name vals
+         fnBody' <- makeExpr $ Begin [fnBody, recCall]
+         fnBody'' <- makeExpr $ If check result fnBody'
+         fun <- makeExpr $ Lambda vars fnBody''
+         makeExpr $ LetRec [(name, fun)] initCall
+
+iterspec = do es <- parens (many expr)
+              case es of
+                [e@(Expr _ (Ref var)), init, step] -> return (var, init, step)
+                [e@(Expr _ (Ref var)), init]       -> return (var, init, e)
+                _                 -> parserFail "malformed iteration spec"
+
+terminate = do es <- many expr
+               case es of
+                [check]         -> makeVoid >>= \v -> return (check, v)
+                [check, result] -> return (check, result)
+                _               -> parserFail "malformed termination"
 
 expr =     (literal >>= makeExpr . Lit)
        <|> (ident >>= makeExpr . Ref)
