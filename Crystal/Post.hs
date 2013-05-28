@@ -12,10 +12,18 @@ import Crystal.Type
 type Decl = (Ident, Expr TLabel)
 
 postprocess :: Expr TLabel -> ([Decl], Expr TLabel)
-postprocess = undoLetrec
+postprocess = undoLetrec . undoLetIf
 
 undoLetrec expr = (decls, core)
   where (decls, core) = go expr
         go (Expr _ (LetRec bnds bod)) = undoLetrec bod & _1 %~ (bnds++)
         go (Expr _ (Let bnds bod)) = undoLetrec bod & _1 %~ (bnds++)
         go e = ([], e)
+
+undoLetIf = transform f
+  where f e@(Expr _ (Let [(id, app)] b)) =
+          case b of
+               Expr l (If (Expr _ (Ref r)) cons alt)
+                          | r == id -> Expr l (If app cons alt)
+               _ -> e
+        f x = x
