@@ -26,6 +26,7 @@ makeAppl name args = do ref <- makeExpr (Ref name)
 
 hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
+           <|> (char '\\' >> anyChar >>= \c -> whiteSpace >> return (LitChar c))
 
 literal = try number
           <|> (stringLiteral >>= return . LitString)

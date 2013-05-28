@@ -21,7 +21,7 @@ prettyE (Expr l (Lambda args body))  = appl [text "lambda", parens (sep $ map te
 prettyE (Expr l (Begin body))        = appl (text "begin" : map prettyE body)
 prettyE (Expr l (Lit lit))           = prettyL lit
 
-prettyL (LitChar c)   = text "#" <> text [c]
+prettyL (LitChar c)   = text "#\\" <> text [c]
 prettyL (LitString s) = text "\"" <> escape s <> text "\""
 prettyL (LitSymbol s) = text "'" <> text s
 prettyL (LitInt i)    = int (fromIntegral i)
