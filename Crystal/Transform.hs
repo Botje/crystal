@@ -25,11 +25,6 @@ transformC ast = removeSimpleLets . toANF . flattenLets . splitLetRecs $ ast
 
 spy ast = trace (pretty ast ++ "\n=============\n") ast
 
-isSimple (Expr _ Lit{}) = True
-isSimple (Expr _ Ref{}) = True
-isSimple (Expr _ Lambda{}) = True
-isSimple _ = False
-
 toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
         go e@(Expr l (Lit x)) k = k e
@@ -60,8 +55,7 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
                  return $ Expr labLet $ Let [(var, (Expr l $ Appl f_ args_))] rest
 
         goF [] args k = k (reverse args)
-        goF (x:xs) args k | isSimple x = goF xs (x:args) k
-                          | otherwise  = go x $ \x_ -> goF xs (x_:args) k
+        goF (x:xs) args k = go x $ \x_ -> goF xs (x_:args) k
 
 removeSimpleLets :: Expr Label -> Expr Label
 removeSimpleLets = transformBi f
