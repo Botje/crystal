@@ -16,6 +16,9 @@ makeExpr ie = do s <- getState
                  putState (succ s)
                  return $ Expr s ie
 
+makeAppl name args = do ref <- makeExpr (Ref name)
+                        makeExpr $ Appl ref args
+
 hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
 
@@ -33,7 +36,7 @@ number = do mul <- option 1 (char '-' >> return (-1))
 
 sexp =     (reserved "begin" >> exprs)
        <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) exprs >>= makeExpr)
-       <|> (reserved "let" >> parens (many (parens (liftM2 (,) ident expr))) >>= \bind -> exprs >>= makeExpr . Let bind)
+       <|> (reserved "let" >> let')
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
@@ -55,6 +58,26 @@ if' = do cons <- expr
          alt  <- expr <|> makeVoid
          makeExpr $ If cons cond alt
   <?> "if"
+
+bindings = parens (many (parens (liftM2 (,) ident expr))) 
+
+simpleLet = do bnd <- bindings
+               body <- exprs
+               makeExpr $ Let bnd body
+            <?> "simple let"
+
+namedLet = do name <- ident
+              bnd <- bindings
+              fnBody <- exprs
+              let (vars, vals) = unzip bnd
+              fun <- makeExpr $ Lambda vars fnBody
+              body <- makeAppl name vals
+              makeExpr $ LetRec [(name, fun)] body
+
+
+let' =     namedLet
+       <|> simpleLet 
+       <?> "let expression"
 
 expr =     (literal >>= makeExpr . Lit)
        <|> (ident >>= makeExpr . Ref)
