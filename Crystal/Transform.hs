@@ -33,7 +33,10 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
                                             k (Expr l (Lambda ids body_))
         go (Expr l (Begin [])) k  = error "Empty begin"
         go (Expr l (Begin [x]) ) k = go x k
-        go (Expr l (Begin (x:xs))) k = go x $ \_ -> go (Expr l (Begin xs)) k
+        go (Expr l (Begin (x:xs))) k =
+          go x $ \e -> do l' <- nextSeq
+                          body <- go (Expr l (Begin xs)) return
+                          k (Expr l' $ Let [("_", e)] body)
         go (Expr l (If cond cons alt)) k =
           go cond $ \cond_ -> do cons_ <- (go cons return)
                                  alt_ <- (go alt return)
@@ -79,7 +82,7 @@ type Idents = S.Set Ident
 
 splitLetRecs expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
-        f (Expr _ (LetRec bnds bod)) = float fv names
+        f (Expr _ (LetRec bnds bod)) | length bnds > 1 = float fv names
           where names = S.fromList $ map fst bnds
                 fv = M.fromList $ map (second (\e -> names `S.intersection` S.fromList (freeVars e))) bnds
                 float :: M.Map Ident Idents -> Idents -> State Label (Expr Label)
