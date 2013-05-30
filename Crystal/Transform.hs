@@ -63,7 +63,9 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
 removeSimpleLets :: Expr Label -> Expr Label
 removeSimpleLets = transformBi f
   where f :: Expr Label -> Expr Label
-        f (Expr _ (Let [(bnd, app)] (Expr _ (Ref bnd')))) | bnd == bnd' = app
+        f (Expr l (Let [(var, e)]
+                       (Expr _ (Let [("_", (Expr _ (Ref var')))]
+                                    bod)))) | var == var' = Expr l (Let [("_", e)] bod)
         f x = x
 
 updateRootLabel :: Expr Label -> State Label (Expr Label)
