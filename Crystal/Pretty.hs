@@ -20,17 +20,19 @@ prettyE (Expr l (Let bds bod))       = appl [op, parens (vcat $ map (\(i,e) -> a
 prettyE (Expr l (LetRec bds bod))    = appl [text "letrec" , parens (vcat $ map (\(i,e) -> appl [text i, prettyE e]) bds) , prettyE bod]
 prettyE (Expr l (Lambda args body))  = appl [text "lambda", parens (sep $ map text args), prettyE body] 
 prettyE (Expr l (Begin body))        = appl (text "begin" : map prettyE body)
-prettyE (Expr l (Lit lit))           = prettyL lit
+prettyE (Expr l (Lit lit))           = prettyL False lit
 
-prettyL (LitChar c)   = text "#\\" <> text [c]
-prettyL (LitString s) = text "\"" <> escape s <> text "\""
-prettyL (LitSymbol s) = text "'" <> text s
-prettyL (LitInt i)    = int (fromIntegral i)
-prettyL (LitFloat f)  = double f
-prettyL (LitBool True) = text "#t"
-prettyL (LitBool False) = text "#f"
-prettyL (LitVoid) = text "#<void>"
+prettyL _ (LitChar c)   = text "#\\" <> text [c]
+prettyL _ (LitString s) = text "\"" <> escape s <> text "\""
+prettyL l (LitSymbol s) = quoted l <> text s
+prettyL _ (LitInt i)    = int (fromIntegral i)
+prettyL _ (LitFloat f)  = double f
+prettyL _ (LitBool True) = text "#t"
+prettyL _ (LitBool False) = text "#f"
+prettyL _ (LitVoid) = text "#<void>"
+prettyL l (LitList els) = quoted l <> parens (hsep $ map (prettyL True) els)
 
 appl (x:xs) = parens (x <+> sep xs)
+quoted l = if l then empty else text "'"
 
 escape = text . concatMap (\x -> if x == '\n' then "\\n" else [x])

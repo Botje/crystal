@@ -23,6 +23,7 @@ data LitVal = LitChar   Char
             | LitBool   Bool
             | LitSymbol String
             | LitVoid
+            | LitList [LitVal]
               deriving (Show, Read, Ord, Eq, Data, Typeable)
 
 data Expr a = Expr a (InExpr (Expr a)) deriving (Show, Read, Ord, Eq, Data, Typeable)

@@ -28,10 +28,15 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
            <|> (char '\\' >> anyChar >>= \c -> whiteSpace >> return (LitChar c))
 
+quote =     symbol
+        <|> LitList `liftM` parens (many treeEl)
+  where treeEl = symbol <|> literal <|> (LitList `liftM` parens (many treeEl))
+        symbol = LitSymbol `liftM` ident
+
 literal = try number
           <|> (stringLiteral >>= return . LitString)
           <|> (char '#' >> hashChar)
-          <|> (char '\'' >> ident >>= return . LitSymbol)
+          <|> (char '\'' >> quote)
           <?> "literal"
 
 number = do mul <- option 1 (char '-' >> return (-1))

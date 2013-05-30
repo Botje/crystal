@@ -38,7 +38,7 @@ getTypeAndLabel :: Expr TypedLabel -> TypedLabel
 getTypeAndLabel (Expr tl _) = tl
 
 
-data Type = TInt | TString | TBool | TSymbol | TVoid | TVec
+data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull
           | Tor [Type]
           | TVar TVar
           | TFun [TVar] Type
@@ -82,6 +82,8 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
           (Lit (LitBool b)) -> return $ Expr (l' :*: TBool) (Lit (LitBool b))
           (Lit (LitSymbol s)) -> return $ Expr (l' :*: TSymbol) (Lit (LitSymbol s))
           (Lit (LitVoid)) -> return $ Expr (l' :*: TVoid) (Lit (LitVoid))
+          (Lit (LitList els)) | null els  -> return $ Expr (l' :*: TNull) (Lit (LitList els))
+                              | otherwise -> return $ Expr (l' :*: TPair) (Lit (LitList els))
           (Ref i) -> do lt <- asks (M.lookup i)
                         case lt of
                           Just (l :*: t) -> return $ Expr (l :*: t) (Ref i)
@@ -140,7 +142,11 @@ main_env = M.fromList [
     "vector-ref"    --> TFun [1..2] . require [(TVec,1), (TInt,2)] (TAny),
     "vector-set!"   --> TFun [1..3] . require [(TVec,1), (TInt,2)] (TVar 3),
     "make-vector"   --> TFun [1..2] . require [(TInt,1)] TVec,
-    "vector-length" --> TFun [1..1] . require [(TVec,1)] TInt
+    "vector-length" --> TFun [1..1] . require [(TVec,1)] TInt,
+    "cons"          --> TFun [1..2] . require [] TPair,
+    "car"           --> TFun [1..1] . require [(TPair,1)] TAny,
+    "cdr"           --> TFun [1..1] . require [(TPair,1)] TAny,
+    "null?"         --> TFun [1..1] . require [] TBool
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
