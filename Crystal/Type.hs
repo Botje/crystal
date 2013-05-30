@@ -38,7 +38,7 @@ getTypeAndLabel :: Expr TypedLabel -> TypedLabel
 getTypeAndLabel (Expr tl _) = tl
 
 
-data Type = TInt | TString | TBool | TSymbol | TVoid
+data Type = TInt | TString | TBool | TSymbol | TVoid | TVec
           | Tor [Type]
           | TVar TVar
           | TFun [TVar] Type
@@ -136,7 +136,11 @@ main_env = M.fromList [
     "expt"          --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "sin"           --> TFun [1..1] . require [(TInt,1)] TInt,
     "cos"           --> TFun [1..1] . require [(TInt,1)] TInt,
-    "error"         --> TFun [1..1] . require [(TString,1)] TAny
+    "error"         --> TFun [1..1] . require [(TString,1)] TAny,
+    "vector-ref"    --> TFun [1..2] . require [(TVec,1), (TInt,2)] (TAny),
+    "vector-set!"   --> TFun [1..3] . require [(TVec,1), (TInt,2)] (TVar 3),
+    "make-vector"   --> TFun [1..2] . require [(TInt,1)] TVec,
+    "vector-length" --> TFun [1..1] . require [(TVec,1)] TInt
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
