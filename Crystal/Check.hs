@@ -34,7 +34,9 @@ introduceChecks expr = go expr
           case e of 
                Appl op args         -> Expr (l :*: checks) (Appl op' args')
                  where labLookup l =
-                           head [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ]
+                         case [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ] of
+                              [] -> error ("Label lookup failed. Failing expression: " ++ show e)
+                              (x:xs) -> x
                        (op':args') = map go (op:args)
                        checks = simplifyC (typeToChecks labLookup t)
                        litOrIdent (Ref r) = Right r
