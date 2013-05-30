@@ -119,16 +119,24 @@ type Env = M.Map Ident TypedLabel
 
 main_env :: Env
 main_env = M.fromList [
-    "=" --> \this -> TFun [0,1] TBool,
-    "+" --> TFun [2,3] . require [(TInt,2), (TInt,3)] TInt,
-    "string-append" --> TFun [4,5] . require [(TString,4), (TString,5)] TString,
-    "<" --> TFun [6,7] . require [(TInt,6), (TInt,7)] TBool,
-    "*" --> TFun [8,9] . require [(TInt,8), (TInt,9)] TInt,
-    "-" --> TFun [10,11] . require [(TInt,10), (TInt,11)] TInt,
-    "display" --> TFun [12] . require [(TString,12)] TAny,
-    "eq?" --> TFun [13,14] . require [] TBool,
-    ">" --> TFun [15,16] . require [(TInt,15), (TInt,16)] TBool,
-    "read" --> const (TFun [] TAny)
+    "="             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
+    "+"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "*"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "-"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "/"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "<"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
+    ">"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
+    "string-append" --> TFun [1..2] . require [(TString,1), (TString,2)] TString,
+    "display"       --> TFun [1..1] . require [(TString,1)] TAny,
+    "eq?"           --> TFun [1..2] . require [] TBool,
+    "read"          --> TFun []     . require [] TAny,
+    "not"           --> TFun [1..1] . require [] TBool,
+    "quotient"      --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "atan"          --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "expt"          --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "sin"           --> TFun [1..1] . require [(TInt,1)] TInt,
+    "cos"           --> TFun [1..1] . require [(TInt,1)] TInt,
+    "error"         --> TFun [1..1] . require [(TString,1)] TAny
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
