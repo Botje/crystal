@@ -4,6 +4,7 @@ module Crystal.Check where
 import Control.Lens hiding (transform)
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.List
 import qualified Data.Map as M
 import Data.Generics
@@ -77,23 +78,13 @@ simplifyC (Cor cs) =
   where cs' = nub $ map simplifyC cs
 simplifyC c = c
 
-mergeC Cnone     check     = check
-mergeC check     Cnone     = check
-mergeC (Cor  as) check     = Cand [Cor as, check]
-mergeC (Cand as) check = 
-  case check of 
-       Cand bs -> foldl mergeC (Cand as) bs
-       Cor bs  -> Cand (as ++ [Cor bs])
-       c@(Check l t (Left lit)) -> Cand (as ++ [c])
-       c@(Check l t (Right id)) -> if any (checks t id) as
-                                      then Cand as
-                                      else Cand (as ++ [c])
-mergeC checkA    checkB    = mergeC (Cand [checkA]) checkB
-
-checks t id (Check _ t' (Right id')) = t == t' && id == id'
-checks t id c = False
-
-
+insertC :: Check -> [Check] -> [Check]
+insertC            c                []   = [c]
+insertC cc@(Check l t (Right id)) (c:cs) =
+  case cc of
+       Check l' t' (Right id')
+        | id == id' && t == t' -> Check (l++l') t' (Right id) : cs
+       _                       -> c : insertC cc cs
 
 moveChecksUp :: Expr CheckedLabel -> Expr CheckedLabel
 moveChecksUp = transformBi f
@@ -110,21 +101,28 @@ moveChecksUp = transformBi f
                Let [(id, e)] bod    ->
                  Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
-                         checksNoId = mergeC e_c (simplifyC $ removeChecksOn id bod_c)
+                         checksNoId = simplifyC $ Cand [e_c, removeChecksOn id bod_c]
 
 removeChecksOn id = transform f
   where f c@(Check _ _ (Right id')) | id == id' = Cnone
         f c = c
 
 type TypeMap = M.Map Ident Type
+type Dups    = [(Ident, [TLabel])]
+type DupsMap = M.Map Ident [TLabel]
+
+toDupsMap :: Dups -> DupsMap
+toDupsMap = M.fromListWith (++)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Expr CheckedLabel
-eliminateRedundantChecks expr = runReader (go expr) M.empty
+eliminateRedundantChecks expr = fst $ runReader (runWriterT $ go expr) M.empty
   where go orig@(Expr (l :*: checks) e) =
           do env <- ask
-             let (checks', env') = elimRedundant env checks
-             e' <- local (const env') $ f e
-             return (Expr (l :*: simplifyC checks') e')
+             let (env', checks', dupsC) = elimRedundant env checks
+             (e', dupsE) <- listen $ local (const env') $ f e
+             let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
+             tell $ M.toList dups
+             return (Expr (l :*: addDuplicates dups (simplifyC checks')) e')
         f e =
           case e of
              Appl op args         -> return e
@@ -141,22 +139,33 @@ eliminateRedundantChecks expr = runReader (go expr) M.empty
              Lambda ids bod       -> Lambda ids `liftM` local (M.union (defaultEnv ids)) (go bod)
         defaultEnv ids = M.fromList [ (x, TAny) | x <- ids ]
 
-elimRedundant :: TypeMap -> Check -> (Check, TypeMap)
-elimRedundant env checks = runState (go checks) env
-  where go Cnone     = return Cnone
+addDuplicates :: DupsMap -> Check -> Check
+addDuplicates dups c | M.null dups = c
+addDuplicates dups c = transform f c
+  where f (Check lab typ (Right i)) =
+          let lab' = maybe [] id (M.lookup i dups) in
+              Check (lab++lab') typ (Right i)
+        f c = c
+
+elimRedundant :: TypeMap -> Check -> (TypeMap, Check, Dups)
+elimRedundant env checks = (env', simplifyC checks', duplicates)
+  where ((checks', env'), duplicates) = runWriter (runStateT (go checks) env)
+        go :: Check -> StateT TypeMap (Writer Dups) Check
+        go Cnone     = return Cnone
         go (Cand cs) = Cand `liftM` mapM go cs
         go (Cor cs)  = do env <- get
-                          let cs' = map (\c -> evalState (go c) env) cs
+                          cs' <- lift $ mapM (\c -> evalStateT (go c) env) cs
                           return $ Cor cs'
         go c@(Check lab typ target) =
-          case target of
-               Left lit -> return c
-               Right id ->
-                 case M.lookup id env  of
-                      Nothing   -> error ("Unbound identifier " ++ id)
-                      Just TAny -> modify (M.insert id typ) >> return c
-                      Just typ' | typ == typ' -> return Cnone
-                                | otherwise   -> return c
+          do env <- get
+             case target of
+                  Left lit -> return c
+                  Right id ->
+                    case M.lookup id env  of
+                         Nothing   -> error ("Unbound identifier " ++ id)
+                         Just TAny -> modify (M.insert id typ) >> return c
+                         Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
+                                   | otherwise   -> return c
 
 reifyChecks :: Expr CheckedLabel -> Expr TLabel
 reifyChecks expr = go expr
@@ -179,7 +188,7 @@ reify checks e = appl "check" [reify' checks, e]
         reify' (Cnone) = syn (Lit (LitBool True))
         reify' (Cor cs) = appl "or" $ map reify' cs
         reify' (Cand cs) = appl "and" $ map reify' cs
-        reify' (Check blame prim cause) = appl (test prim) (syn (toExpr cause) : map (syn . toBlame) blame)
+        reify' (Check blame prim cause) = appl (test prim) (syn (toExpr cause) : map (syn . toBlame) (nub blame))
           where test TInt       = "number?"
                 test TString    = "string?"
                 test TBool      = "boolean?"
