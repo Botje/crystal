@@ -16,7 +16,7 @@ import Crystal.Type
 data Check = Cnone
            | Cand [Check]
            | Cor [Check]
-           | Check TLabel Type (Either LitVal Ident)
+           | Check [TLabel] Type (Either LitVal Ident)
              deriving (Show, Eq, Data, Typeable)
 
 type CheckedLabel = TLabel :*: Check
@@ -54,7 +54,7 @@ introduceChecks expr = go expr
 
 typeToChecks :: (TLabel -> Either LitVal Ident) -> Type -> Check
 typeToChecks look (TIf (blame, cause) prim var rest) =
-  Cand [Check blame prim (look cause), typeToChecks look rest]
+  Cand [Check [blame] prim (look cause), typeToChecks look rest]
 typeToChecks look (Tor types) =
   Cor $ map (typeToChecks look) types
 typeToChecks look _ = Cnone
@@ -179,7 +179,7 @@ reify checks e = appl "check" [reify' checks, e]
         reify' (Cnone) = syn (Lit (LitBool True))
         reify' (Cor cs) = appl "or" $ map reify' cs
         reify' (Cand cs) = appl "and" $ map reify' cs
-        reify' (Check blame prim cause) = appl (test prim) [syn $ toExpr cause, syn $ toBlame blame]
+        reify' (Check blame prim cause) = appl (test prim) (syn (toExpr cause) : map (syn . toBlame) blame)
           where test TInt       = "number?"
                 test TString    = "string?"
                 test TBool      = "boolean?"
