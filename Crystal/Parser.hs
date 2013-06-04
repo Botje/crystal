@@ -28,10 +28,11 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
            <|> (char '\\' >> anyChar >>= \c -> whiteSpace >> return (LitChar c))
 
-quote =     symbol
-        <|> LitList `liftM` parens (many treeEl)
-  where treeEl = literal <|> symbol <|> (LitList `liftM` parens (many treeEl))
-        symbol = LitSymbol `liftM` ident
+quote =     literal
+        <|> LitSymbol `liftM` (ident <|> reservedIdent)
+        <|> LitList `liftM` parens (many quote)
+
+reservedIdent = choice $ map (\n -> reserved n >> return n) reservedNames
 
 literal = try number
           <|> (stringLiteral >>= return . LitString)
@@ -52,6 +53,7 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
        <|> (reserved "do" >> do')
+       <|> (reserved "quote" >> quote >>= makeExpr . Lit)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
 
@@ -173,6 +175,8 @@ program = do whiteSpace
 
 parseCrystal = runParser program 1000
 
+reservedNames = words "lambda if let let* letrec begin define case cond do quote"
+
 sexpDef = T.LanguageDef {
     T.commentStart = ""
   , T.commentEnd   = ""
@@ -182,8 +186,8 @@ sexpDef = T.LanguageDef {
   , T.identLetter  = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
   , T.opStart      = satisfy (\x -> not (isSpace x || isDigit x || x `elem` "$;()"))
   , T.opLetter     = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
-  , T.reservedNames = words "lambda if let letrec begin define cond"
-  , T.reservedOpNames = words "lambda if let letrec begin define cond"
+  , T.reservedNames = reservedNames 
+  , T.reservedOpNames = reservedNames
   , T.caseSensitive = False
   }
 
