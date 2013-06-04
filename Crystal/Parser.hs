@@ -30,7 +30,7 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
 
 quote =     symbol
         <|> LitList `liftM` parens (many treeEl)
-  where treeEl = symbol <|> literal <|> (LitList `liftM` parens (many treeEl))
+  where treeEl = literal <|> symbol <|> (LitList `liftM` parens (many treeEl))
         symbol = LitSymbol `liftM` ident
 
 literal = try number
