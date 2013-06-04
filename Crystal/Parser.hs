@@ -46,7 +46,7 @@ number = do mul <- option 1 (char '-' >> return (-1))
                  Right f -> return . LitFloat . (*mul) $ f
 
 sexp =     (reserved "begin" >> exprs)
-       <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) exprs >>= makeExpr)
+       <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) letBody >>= makeExpr)
        <|> (reserved "let" >> let')
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
@@ -80,7 +80,7 @@ if' = do cons <- expr
 bindings = parens (many (parens (liftM2 (,) ident expr))) 
 
 simpleLet = do bnd <- bindings
-               body <- exprs
+               body <- letBody
                makeExpr $ Let bnd body
             <?> "simple let"
 
@@ -137,9 +137,17 @@ exprs = many1 expr >>= \es ->
 decl = try (parens ((reserved "define" >> (fundecl <|> vardecl))))
        <?> "declaration"
 
+letBody = do
+  decls <- many decl
+  body <- exprs
+  wrappedBody <- foldM innerDef body (reverse decls)
+  return wrappedBody
+  where innerDef exp (nam, fun@(Expr l (Lambda _ _))) = makeExpr $ LetRec [(nam, fun)] exp
+        innerDef exp (nam, val) = makeExpr $ Let [(nam, val)] exp
+
 fundecl = do
   name:args <- parens (many1 ident)
-  body <- makeExpr . Lambda args =<< exprs
+  body <- makeExpr . Lambda args =<< letBody
   return (name, body)
   <?> "function declaration"
 
