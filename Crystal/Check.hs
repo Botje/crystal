@@ -125,7 +125,7 @@ eliminateRedundantChecks expr = fst $ runReader (runWriterT $ go expr) M.empty
              return (Expr (l :*: addDuplicates dups (simplifyC checks')) e')
         f e =
           case e of
-             Appl op args         -> return e
+             Appl op args         -> Appl op `liftM` mapM go args
              Lit lit              -> return e
              Ref r                -> return e
              If cond cons alt     -> liftM2 (If cond) (go cons) (go alt)
