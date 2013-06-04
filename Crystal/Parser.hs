@@ -26,7 +26,10 @@ makeAppl name args = do ref <- makeExpr (Ref name)
 
 hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char 't' >> whiteSpace >> return (LitBool True))
-           <|> (char '\\' >> anyChar >>= \c -> whiteSpace >> return (LitChar c))
+           <|> (char '\\' >> 
+                 (do     (try (string "space") >> whiteSpace >> return (LitChar ' '))
+                     <|> (try (string "newline") >> whiteSpace >> return (LitChar '\n'))
+                     <|> (anyChar >>= \c -> whiteSpace >> return (LitChar c))))
 
 quote =     literal
         <|> LitSymbol `liftM` (ident <|> reservedIdent)
