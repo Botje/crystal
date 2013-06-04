@@ -118,7 +118,7 @@ letRec = do bnd <- bindings
 
 do' = do iterspecs <- parens (many iterspec)
          (check, result) <- parens terminate
-         fnBody <- exprs
+         fnBody <- exprs <|> makeVoid
          let vars  = map (^. _1) iterspecs
          let vals  = map (^. _2) iterspecs
          let steps = map (^. _3) iterspecs
@@ -136,11 +136,9 @@ iterspec = do es <- parens (many expr)
                 [e@(Expr _ (Ref var)), init]       -> return (var, init, e)
                 _                 -> parserFail "malformed iteration spec"
 
-terminate = do es <- many expr
-               case es of
-                [check]         -> makeVoid >>= \v -> return (check, v)
-                [check, result] -> return (check, result)
-                _               -> parserFail "malformed termination"
+terminate = do check  <- expr
+               result <- exprs <|> makeVoid
+               return (check, result)
 
 expr =     (literal >>= makeExpr . Lit)
        <|> (ident >>= makeExpr . Ref)
