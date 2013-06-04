@@ -165,7 +165,7 @@ vardecl = do
 program :: Parsec String Label (Expr Label)
 program = do whiteSpace 
              decls <- many decl 
-             e <- expr
+             e <- exprs
              eof 
              case decls of
                   [] -> return e
