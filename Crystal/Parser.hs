@@ -52,6 +52,7 @@ number = do mul <- option 1 (char '-' >> return (-1))
 sexp =     (reserved "begin" >> exprs)
        <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) letBody >>= makeExpr)
        <|> (reserved "let*" >> letStar)
+       <|> (reserved "letrec" >> letRec)
        <|> (reserved "let" >> let')
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
@@ -97,15 +98,23 @@ namedLet = do name <- ident
               fun <- makeExpr $ Lambda vars fnBody
               body <- makeAppl name vals
               makeExpr $ LetRec [(name, fun)] body
-
-letStar = do bnd <- bindings
-             fnBody <- letBody
-             foldM wrap fnBody (reverse bnd)
-  where wrap bod (nam, val) = makeExpr $ Let [(nam, val)] bod
+              <?> "named let"
 
 let' =     namedLet
        <|> simpleLet 
        <?> "let expression"
+
+
+letStar = do bnd <- bindings
+             fnBody <- letBody
+             foldM wrap fnBody (reverse bnd)
+             <?> "let*"
+  where wrap bod (nam, val) = makeExpr $ Let [(nam, val)] bod
+
+letRec = do bnd <- bindings
+            body <- letBody
+            makeExpr $ LetRec bnd body
+            <?> "letrec"
 
 do' = do iterspecs <- parens (many iterspec)
          (check, result) <- parens terminate
