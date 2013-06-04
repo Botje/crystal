@@ -60,6 +60,12 @@ cond = do clauses <- many (parens sexp)
           nestIfs clauses
   where nestIfs [] = makeVoid
         nestIfs [Expr l (Appl (Expr _ (Ref "else")) es)] = return $ Expr l $ Begin es
+        nestIfs (test@(Expr l (Appl clause [])):es) = 
+          do nam <- fresh "cond-"
+             es_ <- nestIfs es
+             ref_ <- makeExpr (Ref nam)
+             if_ <- makeExpr (If ref_ ref_ es_)
+             makeExpr $ Let [(nam, test)] if_
         nestIfs (Expr l (Appl clause body):es) = 
           do body_ <- makeExpr (Begin body)
              es_ <- nestIfs es
