@@ -80,7 +80,7 @@
         (set! le (expt 2 l))
         (set! le1 (quotient le 2))
         (set! ur 1.0)
-        (set! ui 0.)
+        (set! ui 0.0)
         (set! wr (cos (/ pi le1)))
         (set! wi (sin (/ pi le1)))
         ;; loop thru butterflies

@@ -176,7 +176,7 @@
                  (begin
                    (set-car! where
                      (if (memq (const-value (cadr exp)) '(#f ())) ; false?
-                       (if (= (length exp) 3) ''() (cadddr exp))
+                       (if (= (length exp) 3) '() (cadddr exp))
                        (caddr exp)))
                    (s! where))
                  (for-each! s! (cddr exp)))) ; simplify consequent and alt.
