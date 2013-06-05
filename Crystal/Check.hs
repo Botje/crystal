@@ -192,11 +192,12 @@ reify checks e = appl "check" [reify' checks, e]
           where test TInt       = "number?"
                 test TString    = "string?"
                 test TBool      = "boolean?"
+                test TChar      = "character?"
                 test TSymbol    = "symbol?"
                 test TVoid      = "void?"
                 test TVec       = "vector?"
                 test TPair      = "pair?"
-                test (TFun _ _) = "function?"
+                test (TFun _ _) = "procedure?"
 
         syn e = Expr LSyn e
         appl f args = syn (Appl (syn $ Ref f) args)

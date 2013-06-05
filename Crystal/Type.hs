@@ -38,7 +38,7 @@ getTypeAndLabel :: Expr TypedLabel -> TypedLabel
 getTypeAndLabel (Expr tl _) = tl
 
 
-data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull
+data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar
           | Tor [Type]
           | TVar TVar
           | TFun [TVar] Type
@@ -78,6 +78,7 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
         go (Expr l e) = let l' = LSource l in
           case e of
           (Lit (LitString s)) -> return $ Expr (l' :*: TString) (Lit (LitString s))
+          (Lit (LitChar c)) -> return $ Expr (l' :*: TChar) (Lit (LitChar c))
           (Lit (LitInt i)) -> return $ Expr (l' :*: TInt) (Lit (LitInt i))
           (Lit (LitBool b)) -> return $ Expr (l' :*: TBool) (Lit (LitBool b))
           (Lit (LitSymbol s)) -> return $ Expr (l' :*: TSymbol) (Lit (LitSymbol s))
