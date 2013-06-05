@@ -157,10 +157,9 @@ decl = try (parens ((reserved "define" >> (fundecl <|> vardecl))))
 letBody = do
   decls <- many decl
   body <- exprs
-  wrappedBody <- foldM innerDef body (reverse decls)
-  return wrappedBody
-  where innerDef exp (nam, fun@(Expr l (Lambda _ _))) = makeExpr $ LetRec [(nam, fun)] exp
-        innerDef exp (nam, val) = makeExpr $ Let [(nam, val)] exp
+  case decls of
+       [] -> return body
+       _  -> makeExpr $ LetRec decls body
 
 fundecl = do
   name:args <- parens (many1 ident)
