@@ -106,8 +106,14 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
                               e_args <- mapM go args
                               let tvars = [1..length args]
                               let tl_args = map getTypeAndLabel e_args
-                              let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
-                              return $ Expr (l' :*: applType) (Appl e_f e_args)
+                              let (Expr _ (Ref fun)) = e_f
+                              case M.lookup fun main_env of
+                                   Just (_ :*: typ) | typ == t_f ->
+                                     do let applType = applyPrim t_f tl_args
+                                        return $ Expr (l' :*: applType) (Appl e_f e_args)
+                                   _                             ->
+                                     do let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
+                                        return $ Expr (l' :*: applType) (Appl e_f e_args)
           -- TODO multiple bindings.
           (LetRec [(nam, exp)] bod) -> do var <- freshTVar
                                           let var_tl = LVar var :*: TVar var
@@ -226,10 +232,22 @@ extendMany keys vals env = foldr (uncurry M.insert) env (zip keys vals)
 apply :: Type -> [TypedLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
 apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
-apply (TFun t_args t_bod) a_args | length t_args == length a_args = expand (TAppl (TFun t_args t_bod) a_args)
-apply (TFun t_args t_bod) a_args | otherwise = TError
+apply t_f@(TFun t_args t_bod) a_args | applies t_f a_args = expand (TAppl (TFun t_args t_bod) a_args)
+                                     | otherwise = TError
 apply (TVar v) a_args = TAppl (TVar v) a_args
 apply _ a_args = TError
+
+applies :: Type -> [TypedLabel] -> Bool
+applies (TFun t_args t_bod) a_args = length t_args == length a_args  
+applies _ _ = False
+
+applyPrim :: Type -> [TypedLabel] -> Type
+applyPrim t_f@(Tor funs) t_args =
+  case listToMaybe $ filter (flip applies t_args) funs of
+       Nothing -> apply t_f t_args
+       Just fun -> apply fun t_args
+applyPrim t_f@(TFun t_args t_bod) a_args | applies t_f a_args = apply t_f a_args
+applyPrim t_f t_args = apply t_f t_args
 
 expand (TAppl (TFun t_args t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
 expand typ = typ
