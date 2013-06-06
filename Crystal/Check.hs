@@ -162,7 +162,7 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
                   Left lit -> return c
                   Right id ->
                     case M.lookup id env  of
-                         Nothing   -> error ("Unbound identifier " ++ id)
+                         Nothing   -> return c -- error ("Unbound identifier " ++ id ++ " in check " ++ show c)
                          Just TAny -> modify (M.insert id typ) >> return c
                          Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
                                    | otherwise   -> return c

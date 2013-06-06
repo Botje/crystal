@@ -3,6 +3,7 @@ module Crystal.Type  where
 
 import Control.Lens
 import Control.Monad
+import Data.Function
 import Data.Generics
 import Data.Generics.Biplate
 import Data.List
@@ -42,11 +43,24 @@ data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TC
           | Tor [Type]
           | TVar TVar
           | TFun [TVar] Type
+          | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypedLabel]
           | TError
           | TAny
             deriving (Show, Eq, Data, Typeable)
+
+data VarFun = VarFun { vfName  :: Ident,
+                       vfLabel :: TLabel,
+                       vfFun   :: [TypedLabel] -> TLabel -> Type }
+                 deriving (Data, Typeable)
+
+
+instance Eq VarFun where
+  (==) = (==) `on` vfName
+
+instance Show VarFun where
+  showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s
 
 infer :: Expr Label -> Expr TypedLabel
 infer = simplifyLabels . generate
@@ -64,6 +78,7 @@ simplify (TIf l t_1 t_2 t) | trivial t_1' t_2' = t'
 simplify t = t
 
 trivial (TFun args_1 TAny) (TFun args_2 _) = length args_1 == length args_2
+trivial (TFun _ _) (TVarFun _) = True
 trivial x y | x == y = True
 trivial _ _ = False
 
@@ -178,6 +193,7 @@ main_env = M.fromListWith or [
     "gcd"           --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "lcm"           --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "length"        --> TFun [1..1] . require [(TPair,1)] TInt,
+    "list"          --> makeVarFun "list" (\args -> require [] (if null args then TNull else TPair)),
     "list->vector"  --> TFun [1..1] . require [(TPair,1)] TVec,
     "make-vector"   --> TFun [1..1] . require [(TInt,1)] TVec,
     "make-vector"   --> TFun [1..2] . require [(TInt,1)] TVec,
@@ -212,6 +228,7 @@ main_env = M.fromListWith or [
     "vector-length" --> TFun [1..1] . require [(TVec,1)] TInt,
     "vector-ref"    --> TFun [1..2] . require [(TVec,1), (TInt,2)] (TAny),
     "vector-set!"   --> TFun [1..3] . require [(TVec,1), (TInt,2)] (TVar 3),
+    "vector"        --> makeVarFun "vector" (\args -> require [] TVec),
     "vector?"       --> TFun [1..1] . require [] TBool,
     "void?"         --> TFun [1..1] . require [] TBool,
     "write"         --> TFun [1..1] . require [(TString,1)] TAny,
@@ -220,6 +237,7 @@ main_env = M.fromListWith or [
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
           f blame (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
+          makeVarFun name vf blame = TVarFun (VarFun name blame vf)
           (LPrim nam :*: fun1) `or` (LPrim _ :*: fun2) = LPrim nam :*: Tor [fun1, fun2]
 
 
@@ -232,6 +250,7 @@ extendMany keys vals env = foldr (uncurry M.insert) env (zip keys vals)
 apply :: Type -> [TypedLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
 apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
+apply vf@(TVarFun _) a_args = expand (TAppl vf a_args)
 apply t_f@(TFun t_args t_bod) a_args | applies t_f a_args = expand (TAppl (TFun t_args t_bod) a_args)
                                      | otherwise = TError
 apply (TVar v) a_args = TAppl (TVar v) a_args
@@ -249,7 +268,9 @@ applyPrim t_f@(Tor funs) t_args =
 applyPrim t_f@(TFun t_args t_bod) a_args | applies t_f a_args = apply t_f a_args
 applyPrim t_f t_args = apply t_f t_args
 
+expand :: Type -> Type
 expand (TAppl (TFun t_args t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
+expand (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
 expand typ = typ
 
 chain :: Type -> Type -> Type
