@@ -121,7 +121,7 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
 type Env = M.Map Ident TypedLabel
 
 main_env :: Env
-main_env = M.fromList [
+main_env = M.fromListWith or [
     "="             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
     "+"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "*"             --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
@@ -132,13 +132,32 @@ main_env = M.fromList [
     ">="            --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
     "<="            --> TFun [1..2] . require [(TInt,1), (TInt,2)] TBool,
     "append"        --> TFun [1..2] . require [(TPair,1), (TPair,2)] TPair,
-    "assoc"         --> TFun [1..2] . require [(TPair, 2)] (Tor [TPair, TBool]),
-    "assq"          --> TFun [1..2] . require [(TPair, 2)] (Tor [TPair, TBool]),
-    "assv"          --> TFun [1..2] . require [(TPair, 2)] (Tor [TPair, TBool]),
+    "assoc"         --> TFun [1..2] . require [(TPair,2)] (Tor [TPair, TBool]),
+    "assq"          --> TFun [1..2] . require [(TPair,2)] (Tor [TPair, TBool]),
+    "assv"          --> TFun [1..2] . require [(TPair,2)] (Tor [TPair, TBool]),
     "atan"          --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "boolean?"      --> TFun [1..1] . require [] TBool,
     "car"           --> TFun [1..1] . require [(TPair,1)] TAny,
     "cdr"           --> TFun [1..1] . require [(TPair,1)] TAny,
+    "char?"         --> TFun [1..1] . require [] TBool,
+    "char->integer" --> TFun [1..1] . require [(TChar, 1)] TInt,
+    "char-alphabetic?" --> TFun [1..1] . require [(TChar,1)] TBool,
+    "char-downcase" --> TFun [1..1] . require [(TChar,1)] TChar,
+    "char-lower-case?" --> TFun [1..1] . require [(TChar,1)] TBool,
+    "char-numeric?" --> TFun [1..1] . require [(TChar,1)] TBool,
+    "char-upcase"   --> TFun [1..1] . require [(TChar,1)] TChar,
+    "char-upper-case?" --> TFun [1..1] . require [(TChar,1)] TBool,
+    "char-whitespace?" --> TFun [1..1] . require [(TChar,1)] TBool,
+    "char-ci<=?"    --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char-ci<?"     --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char-ci=?"     --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char-ci>=?"    --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char-ci>?"     --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char<=?"       --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char<?"        --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char=?"        --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char>=?"       --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
+    "char>?"        --> TFun [1..2] . require [(TChar,1),(TChar,2)] TBool,
     "char?"         --> TFun [1..1] . require [] TBool,
     "cons"          --> TFun [1..2] . require [] TPair,
     "cos"           --> TFun [1..1] . require [(TInt,1)] TInt,
@@ -154,6 +173,7 @@ main_env = M.fromList [
     "lcm"           --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "length"        --> TFun [1..1] . require [(TPair,1)] TInt,
     "list->vector"  --> TFun [1..1] . require [(TPair,1)] TVec,
+    "make-vector"   --> TFun [1..1] . require [(TInt,1)] TVec,
     "make-vector"   --> TFun [1..2] . require [(TInt,1)] TVec,
     "map"           --> TFun [1..2] . require [(TFun [3] TAny,1), (TPair,2)] TPair,
     "member"        --> TFun [1..2] . require [(TPair, 2)] (Tor [TPair, TBool]),
@@ -194,6 +214,7 @@ main_env = M.fromList [
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
           f blame (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
+          (LPrim nam :*: fun1) `or` (LPrim _ :*: fun2) = LPrim nam :*: Tor [fun1, fun2]
 
 
 extend :: Ident -> TypedLabel -> Env -> Env
