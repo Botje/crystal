@@ -82,6 +82,9 @@ expandMacros expr@(Expr start _) = evalState (transformBiM f expr >>= updateRoot
           case args of
                [] -> return $ Expr l (Lit (LitBool False))
                _  -> foldM (g (flip . If)) (last args) (reverse $ init args)
+        f (Expr l (Appl (Expr _ (Ref r)) [_, thunk]))
+          | r `elem` ["with-input-from-file", "with-output-to-file"] =
+            return $ Expr l (Appl thunk [])
         f x = return x
         g fun bod test = do nam <- next "tmp-"
                             ifExpr <- makeExpr =<< liftM3 fun (makeExpr $ Ref nam) (makeExpr $ Ref nam) (return bod)
