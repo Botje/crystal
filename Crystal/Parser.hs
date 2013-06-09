@@ -56,6 +56,7 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "let" >> let')
        <|> (reserved "if" >> if')
        <|> (reserved "cond" >> cond)
+       <|> (reserved "case" >> case')
        <|> (reserved "do" >> do')
        <|> (reserved "quote" >> quote >>= makeExpr . Lit)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
@@ -77,6 +78,18 @@ cond = do clauses <- many (parens sexp)
           do body_ <- makeExpr (Begin body)
              es_ <- nestIfs es
              return $ Expr l $ If clause body_ es_
+
+case' = do scrutinee  <- expr
+           clauses    <- many (try (parens clause))
+           lastClause <- parens (symbol "else" >> exprs) <|> makeVoid
+           caseVar    <- fresh "case-"
+           bod        <- foldM (f caseVar) lastClause (reverse clauses)
+           makeExpr $ Let [(caseVar, scrutinee)] bod
+  where clause = parens (many quote) >>= \l -> exprs >>= \es -> return (l, es)
+        f caseVar bod (datums, exp) = do test <- makeAppl "member" =<< mapM makeExpr [Ref caseVar, Lit (LitList datums)]
+                                         makeExpr $ If test exp bod
+
+              
 
 if' = do cons <- expr
          cond <- expr
