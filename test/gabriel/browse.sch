@@ -28,8 +28,6 @@
 ; The next few definitions should be omitted if the Scheme implementation
 ; already provides them.
 
-(module browse mzscheme
-
 (define (my-append! x y)
   (if (null? x)
       y
@@ -175,5 +173,5 @@
               (match (car pats) (car p) '())))))
 
 (time (browse))
-)
+
 
