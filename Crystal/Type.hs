@@ -130,7 +130,6 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
                                    _                             ->
                                      do let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
                                         return $ Expr (l' :*: applType) (Appl e_f e_args)
-          -- TODO multiple bindings.
           (LetRec [(nam, exp)] bod) -> do var <- freshTVar
                                           let var_tl = LVar var :*: TVar var
                                           Expr (e_l :*: TFun abod tbod) _ <- local (extend nam var_tl) (go exp)
@@ -139,6 +138,13 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
                                           (e_1', t_1) <- local (extend nam e_tl) (goT exp)
                                           (e_bod, t_bod) <- local (extend nam e_tl) (goT bod)
                                           return $ Expr (l' :*: t_bod) (LetRec [(nam, e_1')] e_bod)
+          -- TODO: More precision for mutually recursive functions
+          (LetRec bnds bod) -> let (nams, funs) = unzip bnds
+                                   types = map (\(Expr l (Lambda vs _)) -> LSource l :*: TFun [1..length vs] TAny) funs
+                               in local (extendMany nams types) $ do
+                                    funs_ <- mapM go funs
+                                    (e_bod, t_bod) <- goT bod
+                                    return $ Expr (l' :*: t_bod) $ LetRec (zip nams funs_) e_bod
 
 type Env = M.Map Ident TypedLabel
 
