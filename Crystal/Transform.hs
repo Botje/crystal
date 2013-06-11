@@ -84,13 +84,21 @@ expandMacros expr@(Expr start _) = evalState (transformBiM f expr >>= updateRoot
                  return $ Expr l (Appl thunk [])
                ("with-output-to-file", [_, thunk]) ->
                  return $ Expr l (Appl thunk [])
+               (_   , [l]) | carLike r ->
+                 foldM addCarStep l (reverse $ carSteps r)
                _ -> return expr
         f x = return x
         g fun bod test = do nam <- next "tmp-"
                             ifExpr <- makeExpr =<< liftM3 fun (makeExpr $ Ref nam) (makeExpr $ Ref nam) (return bod)
                             letExpr <- makeExpr $ Let [(nam, test)] ifExpr
                             return letExpr
+        addCarStep bod 'a' = makeExpr (Ref "car") >>= \r -> makeExpr (Appl r [bod]) 
+        addCarStep bod 'd' = makeExpr (Ref "cdr") >>= \r -> makeExpr (Appl r [bod]) 
                         
+carLike [] = False
+carLike n  = head n == 'c' && last n == 'r' && all (`elem` "ad") (carSteps n)
+
+carSteps = init . tail
 
 updateRootLabel :: Expr Label -> State Label (Expr Label)
 updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
