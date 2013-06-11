@@ -74,17 +74,17 @@ makeExpr expr = nextSeq >>= \s -> return $ Expr s expr
 expandMacros :: Expr Label -> Expr Label
 expandMacros expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
-        f (Expr l (Appl (Expr _ (Ref "and")) args)) =
-          case args of
-               [] -> return $ Expr l (Lit (LitBool True))
-               _  -> foldM (g If) (last args) (reverse $ init args)
-        f (Expr l (Appl (Expr _ (Ref "or")) args)) =
-          case args of
-               [] -> return $ Expr l (Lit (LitBool False))
-               _  -> foldM (g (flip . If)) (last args) (reverse $ init args)
-        f (Expr l (Appl (Expr _ (Ref r)) [_, thunk]))
-          | r `elem` ["with-input-from-file", "with-output-to-file"] =
-            return $ Expr l (Appl thunk [])
+        f expr@(Expr l (Appl (Expr _ (Ref r)) args)) =
+          case (r, args) of
+               ("and", []) -> return $ Expr l (Lit (LitBool True))
+               ("and", _ ) -> foldM (g If) (last args) (reverse $ init args)
+               ("or",  []) -> return $ Expr l (Lit (LitBool False))
+               ("or",  _ ) -> foldM (g (flip . If)) (last args) (reverse $ init args)
+               ("with-input-from-file", [_, thunk]) ->
+                 return $ Expr l (Appl thunk [])
+               ("with-output-to-file", [_, thunk]) ->
+                 return $ Expr l (Appl thunk [])
+               _ -> return expr
         f x = return x
         g fun bod test = do nam <- next "tmp-"
                             ifExpr <- makeExpr =<< liftM3 fun (makeExpr $ Ref nam) (makeExpr $ Ref nam) (return bod)
