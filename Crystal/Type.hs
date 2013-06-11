@@ -94,6 +94,7 @@ generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
           case e of
           (Lit (LitString s)) -> return $ Expr (l' :*: TString) (Lit (LitString s))
           (Lit (LitChar c)) -> return $ Expr (l' :*: TChar) (Lit (LitChar c))
+          (Lit (LitFloat f)) -> return $ Expr (l' :*: TInt) (Lit (LitFloat f)) -- TODO float
           (Lit (LitInt i)) -> return $ Expr (l' :*: TInt) (Lit (LitInt i))
           (Lit (LitBool b)) -> return $ Expr (l' :*: TBool) (Lit (LitBool b))
           (Lit (LitSymbol s)) -> return $ Expr (l' :*: TSymbol) (Lit (LitSymbol s))
