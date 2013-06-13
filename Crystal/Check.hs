@@ -129,7 +129,9 @@ eliminateRedundantChecks expr = fst $ runReader (runWriterT $ go expr) M.empty
              Lit lit              -> return e
              Ref r                -> return e
              If cond cons alt     -> liftM2 (If cond) (go cons) (go alt)
-             Let [(id, e)] bod    -> Let [(id, e)] `liftM` local (M.insert id TAny) (go bod)
+             Let [(id, e)] bod    -> do e_ <- go e
+                                        bod_ <- local (M.insert id TAny) $ go bod
+                                        return $ Let [(id, e_)] bod_
              LetRec [(id, e)] bod ->
                case e of
                  Expr _ (Lambda ids _) ->
