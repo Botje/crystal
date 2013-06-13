@@ -1,11 +1,11 @@
 (define (guess target)
  (let ((input (read)))
-	(cond ((eq? input "quit") "quit")
+	(cond ((eq? input 'quit) 'quit)
 	 ((< input target)
 		(display "Too low!\n") (guess target))
 	 ((> input target)
 		(display "Too high!\n") (guess target))
 	 (else
-		(display "You guessed correctly.\n") "done"))))
+		(display "You guessed correctly.\n") 'done))))
 
 (guess 4)
