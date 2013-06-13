@@ -147,6 +147,8 @@ generate e@(Expr start _) = return $ evalState (runReaderT (go e) main_env) (suc
                                     funs_ <- mapM go funs
                                     (e_bod, t_bod) <- goT bod
                                     return $ Expr (l' :*: t_bod) $ LetRec (zip nams funs_) e_bod
+          _ -> error ("Don't know how to infer type for " ++ show e)
+
 
 type Env = M.Map Ident TypedLabel
 
