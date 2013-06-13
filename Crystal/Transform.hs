@@ -38,9 +38,9 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
                           body <- go (Expr l (Begin xs)) return
                           k (Expr l' $ Let [("_", e)] body)
         go (Expr l (If cond cons alt)) k =
-          go cond $ \cond_ -> do cons_ <- (go cons return)
-                                 alt_ <- (go alt return)
-                                 k (Expr l $ If cond_ cons_ alt_)
+          goFloat cond $ \cond_ -> do cons_ <- (go cons return)
+                                      alt_ <- (go alt return)
+                                      k (Expr l $ If cond_ cons_ alt_)
         go (Expr l (Let [(name,expr)] bod)) k =
           go expr $ \expr_ -> do body_ <- go bod return
                                  k (Expr l $ Let [(name, expr_)] body_)
@@ -49,7 +49,7 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
              bod_ <- go bod return
              k (Expr l $ LetRec bnds_ bod_)
         go (Expr l (Appl f args)) k =
-          go f $ \f_ ->
+          goFloat f $ \f_ ->
             goF args [] $ \args_ ->
               do var <- next "tmp-"
                  labLet <- nextSeq
@@ -57,8 +57,35 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
                  rest <- k (Expr labRef $ Ref var)
                  return $ Expr labLet $ Let [(var, (Expr l $ Appl f_ args_))] rest
 
+        goFloat :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
+        goFloat expr k =
+          case expr of 
+            Expr l (If _ _ _) ->
+              float expr k
+            Expr l (Begin _) ->
+              float expr k
+            Expr l (Lambda _ _) ->
+              float expr k
+            Expr l (Let _ _) ->
+              float expr k
+            Expr l (LetRec _ _) ->
+              float expr k
+            Expr l (Appl _ _) ->
+              float expr k
+            otherwise ->
+              go expr k
+        
+        float :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
+        float expr k =
+          do var <- next "tmp-"
+             labRef <- nextSeq
+             labLet <- nextSeq
+             expr_ <- go expr return
+             rest <- k (Expr labRef $ Ref var)
+             return $ Expr labLet $ Let [(var, expr_)] rest
+
         goF [] args k = k (reverse args)
-        goF (x:xs) args k = go x $ \x_ -> goF xs (x_:args) k
+        goF (x:xs) args k = goFloat x $ \x_ -> goF xs (x_:args) k
 
 removeSimpleLets :: Expr Label -> Expr Label
 removeSimpleLets = transformBi f
