@@ -13,6 +13,7 @@ import Control.Monad.Reader
 import qualified Data.Map as M
 
 import Crystal.AST
+import Crystal.Config
 import Crystal.Misc
 import Crystal.Seq
 import Crystal.Tuple
@@ -87,7 +88,34 @@ trivial _ _ = False
 type Infer a = ReaderT Env (State TVar) a
 
 generate :: Expr Label -> Step (Expr TypedLabel)
-generate e@(Expr start _) = return $ evalState (runReaderT (go e) main_env) (succ start)
+generate ast = do ts <- asks (^.cfgTypeSys)
+                  case ts of
+                       Smart -> return $ generateSmart ast
+                       Dumb  -> return $ generateDumb  ast
+
+generateDumb :: Expr Label -> Expr TypedLabel
+generateDumb e = go e
+     where go (Expr l expr) =
+             let l' = LSource l
+                 simply = Expr (l' :*: TAny) in
+               case expr of
+                 Appl op args         -> 
+                  let (op_, args_) = (go op, map go args)
+                      (Expr l_r (Ref r)) = op_
+                  in case M.lookup r main_env of
+                          Just (_ :*: t_f) -> Expr (l' :*: applyPrim t_f (map getTypeAndLabel args_)) (Appl op_ args_)
+                          -- TODO: Generate TVar in l_r, reference with a TIf.
+                          Nothing       -> Expr (l' :*: TAny) (Appl op_ args_)
+                 Lit lit              -> simply (Lit lit)
+                 Ref r                -> simply (Ref r)
+                 If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
+                 Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
+                 LetRec [(id, e)] bod -> simply (LetRec [(id, go e)] (go bod))
+                 Lambda ids bod       -> simply (Lambda ids (go bod))
+                 Begin es             -> simply (Begin $ map go es)
+
+generateSmart :: Expr Label -> Expr TypedLabel
+generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
   where goT :: Expr Label -> Infer (Expr TypedLabel, Type)
         goT e = go e >>= \e' -> return (e', getType e')
 
