@@ -10,6 +10,7 @@ prettyD (decls, expr) =
   renderStyle style{lineLength=150} $
     vcat (map toDecl decls) $+$ prettyE expr
   where toDecl (id, Expr l (Lambda args body)) = appl [text "define", parens (sep $ map text (id:args)), prettyE body]
+        toDecl ("_", value)                    = prettyE value
         toDecl (id, value)                     = appl [text "define", text id, prettyE value]
 
 prettyE (Expr l (Ref ident))         = text ident
