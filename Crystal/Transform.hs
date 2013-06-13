@@ -104,9 +104,9 @@ expandMacros expr@(Expr start _) = evalState (transformBiM f expr >>= updateRoot
         f expr@(Expr l (Appl (Expr _ (Ref r)) args)) =
           case (r, args) of
                ("and", []) -> return $ Expr l (Lit (LitBool True))
-               ("and", _ ) -> foldM (g If) (last args) (reverse $ init args)
+               ("and", _ ) -> foldM (g (flip . If)) (last args) (reverse $ init args)
                ("or",  []) -> return $ Expr l (Lit (LitBool False))
-               ("or",  _ ) -> foldM (g (flip . If)) (last args) (reverse $ init args)
+               ("or",  _ ) -> foldM (g If) (last args) (reverse $ init args)
                ("with-input-from-file", [_, thunk]) ->
                  return $ Expr l (Appl thunk [])
                ("with-output-to-file", [_, thunk]) ->
