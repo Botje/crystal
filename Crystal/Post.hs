@@ -12,7 +12,7 @@ import Crystal.Type
 type Decl = (Ident, Expr TLabel)
 
 postprocess :: Expr TLabel -> ([Decl], Expr TLabel)
-postprocess = undoLetrec . undoLetLet . undoLetIf
+postprocess = undoLetrec . undoLetLet
 
 undoLetrec expr = (decls, core)
   where (decls, core) = go expr
@@ -20,14 +20,7 @@ undoLetrec expr = (decls, core)
         go (Expr _ (Let bnds bod)) = undoLetrec bod & _1 %~ (bnds++)
         go e = ([], e)
 
-undoLetIf = transform f
-  where f e@(Expr _ (Let [(id, app)] b)) =
-          case b of
-               Expr l (If (Expr _ (Ref r)) cons alt)
-                          | r == id && "tmp-" `isPrefixOf` id -> Expr l (If app cons alt)
-               _ -> e
-        f x = x
-
+undoLetLet :: Expr TLabel -> Expr TLabel
 undoLetLet = transform f
   where f e@(Expr l (Let [(id, app)] b)) =
           case b of
