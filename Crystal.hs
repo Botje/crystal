@@ -16,11 +16,8 @@ import Crystal.Type
 process fname cts =
   case parseCrystal fname cts of
        Left err  -> hPrint stderr err >> exitFailure
-       Right ast -> do let ast' = transformC ast
---                        putStrLn $ show ast'
-                       putStrLn $ pretty ast'
-                       putStrLn "==================="
-                       putStrLn $ prettyD $ postprocess $ addChecks $ infer ast'
+       Right ast -> do let ast' = postprocess . addChecks . infer . transformC $ ast
+                       putStrLn $ prettyD $ ast'
                        return ()
 
 main = do args <- getArgs
