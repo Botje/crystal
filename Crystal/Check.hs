@@ -6,6 +6,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.List
+import Debug.Trace
 import qualified Data.Map as M
 import Data.Generics
 import Data.Generics.Biplate
@@ -169,7 +170,7 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
                   Left lit -> return c
                   Right id ->
                     case M.lookup id env  of
-                         Nothing   -> return c -- error ("Unbound identifier " ++ id ++ " in check " ++ show c)
+                         Nothing   -> trace ("ignoring unbound identifier " ++ show id) $ return c -- error ("Unbound identifier " ++ id ++ " in check " ++ show c)
                          Just TAny -> modify (M.insert id typ) >> return c
                          Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
                                    | otherwise   -> return c
