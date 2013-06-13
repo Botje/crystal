@@ -24,7 +24,7 @@ undoLetIf = transform f
   where f e@(Expr _ (Let [(id, app)] b)) =
           case b of
                Expr l (If (Expr _ (Ref r)) cons alt)
-                          | r == id -> Expr l (If app cons alt)
+                          | r == id && "tmp-" `isPrefixOf` id -> Expr l (If app cons alt)
                _ -> e
         f x = x
 
