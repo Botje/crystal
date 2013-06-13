@@ -11,6 +11,7 @@ import Data.Generics
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Misc
 import Crystal.Tuple
 import Crystal.Type
 
@@ -28,11 +29,11 @@ _check = _2
 annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check
 
-addChecks :: Expr TypedLabel -> Expr TLabel
-addChecks = reifyChecks . eliminateRedundantChecks . moveChecksUp . introduceChecks
+addChecks :: Expr TypedLabel -> Step (Expr TLabel)
+addChecks = reifyChecks <=< eliminateRedundantChecks <=< moveChecksUp <=< introduceChecks
 
-introduceChecks :: Expr TypedLabel -> Expr CheckedLabel
-introduceChecks expr = go expr
+introduceChecks :: Expr TypedLabel -> Step (Expr CheckedLabel)
+introduceChecks expr = return $ go expr
   where go (Expr (l :*: t) e) =
           let simply = Expr (l :*: Cnone) in
           case e of 
@@ -86,8 +87,8 @@ insertC cc@(Check l t (Right id)) (c:cs) =
         | id == id' && t == t' -> Check (l++l') t' (Right id) : cs
        _                       -> c : insertC cc cs
 
-moveChecksUp :: Expr CheckedLabel -> Expr CheckedLabel
-moveChecksUp = transformBi f
+moveChecksUp :: Expr CheckedLabel -> Step (Expr CheckedLabel)
+moveChecksUp = return . transformBi f
   where f :: Expr CheckedLabel -> Expr CheckedLabel
         f simple@(Expr (l :*: checks) e) =
           case e of
@@ -114,8 +115,8 @@ type DupsMap = M.Map Ident [TLabel]
 toDupsMap :: Dups -> DupsMap
 toDupsMap = M.fromListWith (++)
 
-eliminateRedundantChecks :: Expr CheckedLabel -> Expr CheckedLabel
-eliminateRedundantChecks expr = fst $ runReader (runWriterT $ go expr) M.empty
+eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
+eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) M.empty
   where go orig@(Expr (l :*: checks) e) =
           do env <- ask
              let (env', checks', dupsC) = elimRedundant env checks
@@ -169,8 +170,8 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
                          Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
                                    | otherwise   -> return c
 
-reifyChecks :: Expr CheckedLabel -> Expr TLabel
-reifyChecks expr = go expr
+reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
+reifyChecks = return . go
   where go (Expr (l :*: checks) e) = 
           let simply e = reify (simplifyC checks) (Expr l e) in
               case e of

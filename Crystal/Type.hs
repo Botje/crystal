@@ -13,6 +13,7 @@ import Control.Monad.Reader
 import qualified Data.Map as M
 
 import Crystal.AST
+import Crystal.Misc
 import Crystal.Seq
 import Crystal.Tuple
 
@@ -62,10 +63,11 @@ instance Eq VarFun where
 instance Show VarFun where
   showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s
 
-infer :: Expr Label -> Expr TypedLabel
-infer = simplifyLabels . generate
+infer :: Expr Label -> Step (Expr TypedLabel)
+infer = simplifyLabels <=< generate
 
-simplifyLabels = transformBi simplify
+simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
+simplifyLabels = return . transformBi simplify
 
 simplify :: Type -> Type
 simplify (Tor ts) | length ts' == 1 = head ts'
@@ -84,8 +86,8 @@ trivial _ _ = False
 
 type Infer a = ReaderT Env (State TVar) a
 
-generate :: Expr Label -> Expr TypedLabel
-generate e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
+generate :: Expr Label -> Step (Expr TypedLabel)
+generate e@(Expr start _) = return $ evalState (runReaderT (go e) main_env) (succ start)
   where goT :: Expr Label -> Infer (Expr TypedLabel, Type)
         goT e = go e >>= \e' -> return (e', getType e')
 

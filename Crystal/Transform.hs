@@ -17,15 +17,18 @@ import Data.Generics.Biplate
 import Debug.Trace
 
 import Crystal.AST
-import Crystal.Seq
+import Crystal.Misc
 import Crystal.Pretty
+import Crystal.Seq
 
-transformC :: Expr Label -> Expr Label
-transformC ast = removeSimpleLets . toANF . expandMacros . flattenLets . splitLetRecs $ ast
+transformC :: Expr Label -> Step (Expr Label)
+transformC = removeSimpleLets <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs
+
+splitLetRecs, flattenLets, expandMacros, toANF, removeSimpleLets :: Expr Label -> Step (Expr Label)
 
 spy ast = trace (pretty ast ++ "\n=============\n") ast
 
-toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ start)
+toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
         go e@(Expr l (Lit x)) k = k e
         go e@(Expr l (Ref r)) k = k e
@@ -87,8 +90,7 @@ toANF expr@(Expr start _) = evalState (go expr return >>= updateRootLabel) (succ
         goF [] args k = k (reverse args)
         goF (x:xs) args k = goFloat x $ \x_ -> goF xs (x_:args) k
 
-removeSimpleLets :: Expr Label -> Expr Label
-removeSimpleLets = transformBi f
+removeSimpleLets = return . transformBi f
   where f :: Expr Label -> Expr Label
         f (Expr l (Let [(var, e)]
                        (Expr _ (Let [("_", (Expr _ (Ref var')))]
@@ -98,8 +100,7 @@ removeSimpleLets = transformBi f
 makeExpr :: InExpr (Expr Label) -> State Label (Expr Label)
 makeExpr expr = nextSeq >>= \s -> return $ Expr s expr
 
-expandMacros :: Expr Label -> Expr Label
-expandMacros expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
+expandMacros expr@(Expr start _) = return $ evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
         f expr@(Expr l (Appl (Expr _ (Ref r)) args)) =
           case (r, args) of
@@ -130,7 +131,7 @@ carSteps = init . tail
 updateRootLabel :: Expr Label -> State Label (Expr Label)
 updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
 
-flattenLets expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
+flattenLets expr@(Expr start _) = return $ evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
         f (Expr l (Let [] bod)) = return bod
         f (Expr l (Let bnds bod)) | length bnds > 1 =
@@ -141,7 +142,7 @@ flattenLets expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootL
 
 type Idents = S.Set Ident
 
-splitLetRecs expr@(Expr start _) = evalState (transformBiM f expr >>= updateRootLabel) (succ start)
+splitLetRecs expr@(Expr start _) = return $ evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
         f (Expr _ (LetRec bnds bod)) | length bnds > 1 = float fv names
           where names = S.fromList $ map fst bnds
