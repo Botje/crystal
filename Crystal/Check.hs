@@ -11,6 +11,7 @@ import Data.Generics
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Config
 import Crystal.Misc
 import Crystal.Tuple
 import Crystal.Type
@@ -88,7 +89,10 @@ insertC cc@(Check l t (Right id)) (c:cs) =
        _                       -> c : insertC cc cs
 
 moveChecksUp :: Expr CheckedLabel -> Step (Expr CheckedLabel)
-moveChecksUp = return . transformBi f
+moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
+                      if moveUp
+                         then return $ transformBi f ast
+                         else return ast
   where f :: Expr CheckedLabel -> Expr CheckedLabel
         f simple@(Expr (l :*: checks) e) =
           case e of

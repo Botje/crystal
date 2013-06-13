@@ -10,10 +10,12 @@ data TSType = Dumb | Smart deriving (Show, Eq, Data, Typeable)
 
 data Config =
   Config { _cfgTypeSys   :: TSType,
-           _cfgInputFile :: String
+           _cfgInputFile :: String,
+           _cfgCheckMobility :: Bool
          } deriving (Show, Eq, Data, Typeable)
 
 $(makeLenses ''Config)
 
 defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system", Dumb &= help "Dynamic type system" ],
-                       _cfgInputFile = def &= args        &= typFile}
+                       _cfgInputFile = def &= args &= typFile,
+                       _cfgCheckMobility = True &= help "Test mobility" &= name "mobility" }
