@@ -49,11 +49,7 @@ toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLab
         go (Expr l (Appl f args)) k =
           goFloat f $ \f_ ->
             goF args [] $ \args_ ->
-              do var <- next "tmp-"
-                 labLet <- nextSeq
-                 labRef <- nextSeq
-                 rest <- k (Expr labRef $ Ref var)
-                 return $ Expr labLet $ Let [(var, (Expr l $ Appl f_ args_))] rest
+              k (Expr l $ Appl f_ args_)
 
         goFloat :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
         goFloat expr k =
