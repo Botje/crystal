@@ -20,8 +20,8 @@
 (define *im* (make-vector 1025 0.0))
  
 (define (fft areal aimag)
-  (let ((ar 0)
-        (ai 0)
+  (let ((ar areal)
+        (ai aimag)
         (i 0)
         (j 0)
         (k 0)
@@ -39,8 +39,6 @@
         (tr 0)
         (ti 0))
     ;; initialize
-    (set! ar areal)
-    (set! ai aimag)
     (set! n (vector-length ar))
     (set! n (- n 1))
     (set! nv2 (quotient n 2))
