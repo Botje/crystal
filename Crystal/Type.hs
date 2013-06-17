@@ -1,7 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Type  where
 
-import Control.Lens
+import Control.Lens hiding (transform)
 import Control.Monad
 import Data.Function
 import Data.Generics
@@ -103,7 +103,7 @@ generateDumb e = go e
                   let (op_, args_) = (go op, map go args)
                       (Expr l_r (Ref r)) = op_
                   in case M.lookup r main_env of
-                          Just (_ :*: t_f) -> Expr (l' :*: applyPrim t_f (map getTypeAndLabel args_)) (Appl op_ args_)
+                          Just (LPrim nam :*: t_f) -> Expr (l' :*: applyPrim (instantiatePrim nam l' t_f) (map getTypeAndLabel args_)) (Appl op_ args_)
                           -- TODO: Generate TVar in l_r, reference with a TIf.
                           Nothing       -> Expr (l' :*: TAny) (Appl op_ args_)
                  Lit lit              -> simply (Lit lit)
@@ -154,8 +154,8 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                               let tl_args = map getTypeAndLabel e_args
                               let (Expr _ (Ref fun)) = e_f
                               case M.lookup fun main_env of
-                                   Just (_ :*: typ) | typ == t_f ->
-                                     do let applType = applyPrim t_f tl_args
+                                   Just (LPrim nam :*: typ) ->
+                                     do let applType = applyPrim (instantiatePrim nam l' t_f) tl_args
                                         return $ Expr (l' :*: applType) (Appl e_f e_args)
                                    _                             ->
                                      do let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
@@ -313,6 +313,11 @@ applyPrim t_f@(Tor funs) t_args =
        Just fun -> apply fun t_args
 applyPrim t_f@(TFun t_args t_bod) a_args | applies t_f a_args = apply t_f a_args
 applyPrim t_f t_args = apply t_f t_args
+
+instantiatePrim :: String -> TLabel -> Type -> Type
+instantiatePrim nam lab t = transform f t
+  where f (TIf (LPrim blame, cause) t1 t2 rest) | blame == nam = TIf (lab, cause) t1 t2 rest
+        f x = x
 
 expand :: Type -> Type
 expand (TAppl (TFun t_args t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
