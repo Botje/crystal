@@ -122,13 +122,15 @@ toDupsMap = M.fromListWith (++)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) M.empty
-  where go orig@(Expr (l :*: checks) e) =
+  where go :: Expr CheckedLabel -> WriterT Dups (Reader TypeMap) (Expr CheckedLabel)
+        go orig@(Expr (l :*: checks) e) =
           do env <- ask
              let (env', checks', dupsC) = elimRedundant env checks
              (e', dupsE) <- listen $ local (const env') $ f e
              let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
              tell $ M.toList dups
              return (Expr (l :*: addDuplicates dups (simplifyC checks')) e')
+        f :: InExpr (Expr CheckedLabel) -> WriterT Dups (Reader TypeMap) (InExpr (Expr CheckedLabel))
         f e =
           case e of
              Appl op args         -> Appl op `liftM` mapM go args
