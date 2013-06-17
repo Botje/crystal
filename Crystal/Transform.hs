@@ -14,7 +14,6 @@ import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Generics.Biplate
-import Debug.Trace
 
 import Crystal.AST
 import Crystal.Misc
@@ -25,8 +24,6 @@ transformC :: Expr Label -> Step (Expr Label)
 transformC = removeSimpleLets <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs
 
 splitLetRecs, flattenLets, expandMacros, toANF, removeSimpleLets :: Expr Label -> Step (Expr Label)
-
-spy ast = trace (pretty ast ++ "\n=============\n") ast
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
