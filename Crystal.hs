@@ -33,10 +33,10 @@ process config fname cts =
        Right ast -> do let (ast', results) = runPipeline pipeline ast config
                        putStrLn $ prettyD $ ast'
                        forM_ results $ \(header,cts) ->
-                         do hPutStrLn stderr header
+                         do hPutStrLn stderr ""
+                            hPutStrLn stderr header
                             hPutStrLn stderr $ map (const '_') header
                             hPutStrLn stderr cts
-                            hPutStrLn stderr ""
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of
