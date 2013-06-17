@@ -21,9 +21,9 @@ import Crystal.Pretty
 import Crystal.Seq
 
 transformC :: Expr Label -> Step (Expr Label)
-transformC = removeSimpleLets <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs
+transformC = toANF <=< expandMacros <=< flattenLets <=< splitLetRecs
 
-splitLetRecs, flattenLets, expandMacros, toANF, removeSimpleLets :: Expr Label -> Step (Expr Label)
+splitLetRecs, flattenLets, expandMacros, toANF :: Expr Label -> Step (Expr Label)
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
@@ -31,12 +31,10 @@ toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLab
         go e@(Expr l (Ref r)) k = k e
         go (Expr l (Lambda ids bod)) k = do body_ <- go bod return
                                             k (Expr l (Lambda ids body_))
-        go (Expr l (Begin [])) k  = error "Empty begin"
         go (Expr l (Begin [x]) ) k = go x k
-        go (Expr l (Begin (x:xs))) k =
-          go x $ \e -> do l' <- nextSeq
-                          body <- go (Expr l (Begin xs)) return
-                          k (Expr l' $ Let [("_", e)] body)
+        go (Expr l (Begin exps)) k =
+          do exps_ <- mapM (flip go return) exps
+             k (Expr l $ Begin exps_)
         go (Expr l (If cond cons alt)) k =
           goFloat cond $ \cond_ -> do cons_ <- (go cons return)
                                       alt_ <- (go alt return)
@@ -86,13 +84,6 @@ toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLab
 
         goF [] args k = k (reverse args)
         goF (x:xs) args k = goFloat x $ \x_ -> goF xs (x_:args) k
-
-removeSimpleLets = return . transformBi f
-  where f :: Expr Label -> Expr Label
-        f (Expr l (Let [(var, e)]
-                       (Expr _ (Let [("_", (Expr _ (Ref var')))]
-                                    bod)))) | var == var' = Expr l (Let [("_", e)] bod)
-        f x = x
 
 makeExpr :: InExpr (Expr Label) -> State Label (Expr Label)
 makeExpr expr = nextSeq >>= \s -> return $ Expr s expr

@@ -103,7 +103,9 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck])) e
                LetRec [(id, e)] bod -> simple
                Lambda ids bod       -> simple
-               Begin es             -> simple
+               Begin exps           -> 
+                 Expr (l :*: combinedChecks) $ Begin $ map (set annCheck Cnone) exps
+                   where combinedChecks = Cand (checks : map (^. annCheck) exps)
                Let [(id, e)] bod    ->
                  Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
@@ -147,6 +149,7 @@ eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) 
                       (e_, bod_) <- local (M.insert id t_f) $ liftM2 (,) (go e) (go bod)
                       return $ LetRec [(id, e_)] bod_
              Lambda ids bod       -> Lambda ids `liftM` local (M.union (defaultEnv ids)) (go bod)
+             Begin exps           -> Begin `liftM` mapM go exps
         defaultEnv ids = M.fromList [ (x, TAny) | x <- ids ]
 
 addDuplicates :: DupsMap -> Check -> Check

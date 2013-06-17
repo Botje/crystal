@@ -168,6 +168,9 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                           (e_1', t_1) <- local (extend nam e_tl) (goT exp)
                                           (e_bod, t_bod) <- local (extend nam e_tl) (goT bod)
                                           return $ Expr (l' :*: t_bod) (LetRec [(nam, e_1')] e_bod)
+          (Begin exps) -> do exps_ <- mapM go exps 
+                             let t_last = last exps_ ^. ann._2
+                             return $ Expr (l' :*: t_last) (Begin exps_)
           -- TODO: More precision for mutually recursive functions
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
                                    types = map (\(Expr l (Lambda vs _)) -> LSource l :*: TFun [1..length vs] TAny) funs
