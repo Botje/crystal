@@ -126,7 +126,7 @@ eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) 
         go orig@(Expr (l :*: checks) e) =
           do env <- ask
              let (env', checks', dupsC) = elimRedundant env checks
-             (e', dupsE) <- listen $ local (const env') $ f e
+             (e', dupsE) <- local (const env') $ lift $ runWriterT (f e)
              let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
              tell $ M.toList dups
              return (Expr (l :*: addDuplicates dups (simplifyC checks')) e')
