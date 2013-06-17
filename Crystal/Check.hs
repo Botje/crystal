@@ -1,7 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Check where
 
-import Control.Lens hiding (transform)
+import Control.Lens hiding (transform, universe)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -32,7 +32,7 @@ annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
-addChecks = reifyChecks <=< eliminateRedundantChecks <=< moveChecksUp <=< introduceChecks
+addChecks = reifyChecks <=< generateMobilityStats <=< eliminateRedundantChecks <=< moveChecksUp <=< introduceChecks
 
 introduceChecks :: Expr TypedLabel -> Step (Expr CheckedLabel)
 introduceChecks expr = return $ go expr
@@ -180,6 +180,39 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
                          Just TAny -> modify (M.insert id typ) >> return c
                          Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
                                    | otherwise   -> return c
+
+generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
+generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
+                                when generateStats $
+                                  report "Mobility stats" (format stats)
+                                return expr
+  where format stats = unlines [ show k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
+        stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) $ execWriter (runReaderT (go 0 expr) M.empty)
+
+        go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
+        go depth (Expr (LPrim _ :*: _) _)        = return ()
+        go depth (Expr (LVar _ :*: _) _)        = return ()
+        go depth (Expr (LSource l :*: checks) e) =
+          withChecks $ 
+            case e of 
+                 Appl op args         -> mapM_ descend (op:args)
+                 Lit lit              -> return ()
+                 Ref r                -> return ()
+                 If cond cons alt     -> descend cond >> descend cons >> descend alt
+                 Let [(id, e)] bod    -> descend e >> descend bod
+                 LetRec [(id, e)] bod -> descend e >> descend bod
+                 Lambda ids bod       -> descend bod
+                 Begin exps           -> zipWithM_ go [depth+1..] exps
+          where descend = go (depth + 1)
+                withChecks body = local (M.unionWith (++) newState) (forCurrentLabel >> body)
+                newState = M.fromListWith (++)
+                   [ (lab, [(target, depth)]) | Check labs _ (Right target) <- universe checks, LSource lab <- labs]
+                forCurrentLabel = do checks <- asks (M.lookup l)
+                                     case checks of
+                                          Nothing      -> return ()
+                                          Just checks_ -> tell [ (i, depth - d0) | (i, d0) <- checks_ ]
+        go depth e        = error ("wtf " ++ show e)
+
 
 reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
 reifyChecks = return . go
