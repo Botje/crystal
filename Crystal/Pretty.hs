@@ -16,12 +16,15 @@ prettyD (decls, expr) =
 prettyE (Expr l (Ref ident))         = text ident
 prettyE (Expr l (Appl e args))       = appl $ map prettyE (e:args)
 prettyE (Expr l (If cond cons alt))  = appl (text "if" : map prettyE [cond, cons, alt])
-prettyE (Expr l (Let bds bod))       = appl [op, parens (vcat $ map (\(i,e) -> appl [text i, prettyE e]) bds) , prettyE bod]
+prettyE (Expr l (Let bds bod))       = appl [op, parens (vcat $ map (\(i,e) -> appl [text i, prettyBE e]) bds) , prettyBE bod]
   where op = if length bds > 1 then text "let*" else text "let"
-prettyE (Expr l (LetRec bds bod))    = appl [text "letrec" , parens (vcat $ map (\(i,e) -> appl [text i, prettyE e]) bds) , prettyE bod]
-prettyE (Expr l (Lambda args body))  = appl [text "lambda", parens (sep $ map text args), prettyE body] 
-prettyE (Expr l (Begin body))        = appl (text "begin" : map prettyE body)
+prettyE (Expr l (LetRec bds bod))    = appl [text "letrec" , parens (vcat $ map (\(i,e) -> appl [text i, prettyBE e]) bds) , prettyBE bod]
+prettyE (Expr l (Lambda args body))  = appl [text "lambda", parens (sep $ map text args), prettyBE body] 
+prettyE (Expr l (Begin body))        = appl (text "begin" : map prettyBE body)
 prettyE (Expr l (Lit lit))           = prettyL False lit
+
+prettyBE (Expr l (Begin exps)) = vcat $ map prettyBE exps
+prettyBE other                 = prettyE other
 
 prettyL _ (LitChar c)   = text "#\\" <> text [c]
 prettyL _ (LitString s) = text "\"" <> escape s <> text "\""
