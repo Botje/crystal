@@ -152,9 +152,10 @@ eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) 
 addDuplicates :: DupsMap -> Check -> Check
 addDuplicates dups c | M.null dups = c
 addDuplicates dups c = transform f c
-  where f (Check lab typ (Right i)) =
-          let lab' = maybe [] id (M.lookup i dups) in
-              Check (lab++lab') typ (Right i)
+  where f c@(Check lab typ (Right i)) =
+          case M.lookup i dups of
+               Nothing -> c
+               Just lab' -> Check (lab++lab') typ (Right i)
         f c = c
 
 elimRedundant :: TypeMap -> Check -> (TypeMap, Check, Dups)
