@@ -3,6 +3,7 @@ module Main where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Reader
+import Control.Monad.Writer
 import System.Environment
 import System.Exit
 import System.IO
@@ -18,15 +19,24 @@ import Crystal.Pretty
 import Crystal.Transform
 import Crystal.Type
 
-pipeline :: Expr Label -> Step DeclExpr
+type Pipeline = Expr Label -> Step DeclExpr
+
+pipeline :: Pipeline
 pipeline = transformC >=> infer >=> addChecks >=> postprocess 
+
+runPipeline :: Pipeline -> Expr Label -> Config -> (DeclExpr, [StepResult])
+runPipeline pipe ast cfg = runReader (runWriterT (pipe ast)) cfg
 
 process config fname cts =
   case parseCrystal fname cts of
        Left err  -> hPrint stderr err >> exitFailure
-       Right ast -> do let ast' = runReader (pipeline ast) config 
+       Right ast -> do let (ast', results) = runPipeline pipeline ast config
                        putStrLn $ prettyD $ ast'
-                       return ()
+                       forM_ results $ \(header,cts) ->
+                         do hPutStrLn stderr header
+                            hPutStrLn stderr $ map (const '_') header
+                            hPutStrLn stderr cts
+                            hPutStrLn stderr ""
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of
