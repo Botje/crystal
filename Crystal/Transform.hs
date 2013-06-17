@@ -141,7 +141,7 @@ type Idents = S.Set Ident
 
 splitLetRecs expr@(Expr start _) = return $ evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
-        f (Expr _ (LetRec bnds bod)) | length bnds > 1 = float fv names
+        f (Expr _ (LetRec bnds bod)) = float fv names
           where names = S.fromList $ map fst bnds
                 fv = M.fromList $ map (second (\e -> names `S.intersection` S.fromList (freeVars e))) bnds
                 float :: M.Map Ident Idents -> Idents -> State Label (Expr Label)
