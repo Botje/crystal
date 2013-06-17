@@ -105,7 +105,7 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                Lambda ids bod       -> simple
                Begin exps           -> 
                  Expr (l :*: combinedChecks) $ Begin $ map (set annCheck Cnone) exps
-                   where combinedChecks = Cand (checks : map (^. annCheck) exps)
+                   where combinedChecks = Cand $ map (^. annCheck) exps
                Let [(id, e)] bod    ->
                  Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
