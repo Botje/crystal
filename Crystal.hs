@@ -8,6 +8,7 @@ import System.Environment
 import System.Exit
 import System.IO
 import System.Console.CmdArgs.Implicit
+import Text.Printf
 
 import Crystal.AST
 import Crystal.Check
@@ -32,11 +33,10 @@ process config fname cts =
        Left err  -> hPrint stderr err >> exitFailure
        Right ast -> do let (ast', results) = runPipeline pipeline ast config
                        putStrLn $ prettyD $ ast'
-                       forM_ results $ \(header,cts) ->
-                         do hPutStrLn stderr ""
-                            hPutStrLn stderr header
-                            hPutStrLn stderr $ map (const '_') header
-                            hPutStrLn stderr cts
+                       when (not (null results)) $ do
+                         putStr "\n--- STATS ---\n"
+                         forM_ results $ \(header,cts) ->
+                           printf "<%s>\n%s\n</%s>\n" header cts header
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of
