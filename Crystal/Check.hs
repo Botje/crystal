@@ -79,7 +79,8 @@ simplifyC (Cor cs) =
        _ | Cnone `elem` cs' -> Cnone
        _ -> Cor cs' 
   where cs' = nub $ map simplifyC cs
-simplifyC c = c
+simplifyC (Check labs typ target) = Check (nub labs) typ target
+simplifyC Cnone = Cnone
 
 insertC :: Check -> [Check] -> [Check]
 insertC            c                []   = [c]
@@ -131,7 +132,7 @@ eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) 
              (e', dupsE) <- local (const env') $ lift $ runWriterT (f e)
              let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
              tell $ M.toList dups
-             return (Expr (l :*: addDuplicates dups (simplifyC checks')) e')
+             return (Expr (l :*: simplifyC (addDuplicates dups checks')) e')
         f :: InExpr (Expr CheckedLabel) -> WriterT Dups (Reader TypeMap) (InExpr (Expr CheckedLabel))
         f e =
           case e of
@@ -186,7 +187,7 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 when generateStats $
                                   report "Mobility stats" (format stats)
                                 return expr
-  where format stats = unlines [ show k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
+  where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
         stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) $ execWriter (runReaderT (go 0 expr) M.empty)
 
         go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
