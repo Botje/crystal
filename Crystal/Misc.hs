@@ -15,7 +15,7 @@ spy :: Show a => Expr a -> Step (Expr a)
 spy expr = trace (show expr) $ return expr
 
 spyP :: Show a => Expr a -> Step (Expr a)
-spyP expr = trace (show (pretty expr)) $ return expr
+spyP expr = trace (pretty expr) $ return expr
 
 report :: String -> String -> Step ()
 report header contents = tell [(header,contents)]
