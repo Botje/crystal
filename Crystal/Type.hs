@@ -234,6 +234,7 @@ main_env = M.fromListWith or [
     "expt"          --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "for-each"      --> TFun [1..2] . require [(TFun [3] TAny,1), (TPair,2)] TVoid,
     "gcd"           --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
+    "gensym"        --> TFun []     . require [] TSymbol,
     "lcm"           --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "length"        --> TFun [1..1] . require [(TPair,1)] TInt,
     "list"          --> makeVarFun "list" (\args -> require [] (if null args then TNull else TPair)),
