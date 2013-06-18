@@ -184,11 +184,14 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
 
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
-                                when generateStats $
+                                when generateStats $ do
                                   report "Mobility stats" (format stats)
+                                  report "Number of checks" (show numChecks)
                                 return expr
   where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
-        stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) $ execWriter (runReaderT (go 0 expr) M.empty)
+        stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) checkDepths
+        checkDepths = execWriter (runReaderT (go 0 expr) M.empty)
+        numChecks = length [ () | (Expr (_ :*: check) _) <- universe expr, check /= Cnone]
 
         go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
         go depth (Expr (LPrim _ :*: _) _)        = return ()
