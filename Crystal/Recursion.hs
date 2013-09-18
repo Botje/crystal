@@ -31,12 +31,13 @@ data T = Tint | Tstring
 isTvar (Tvar _) = True
 isTvar ________ = False
 
-cases = [case1, case2, case3, case4]
+cases = [case1, case2, case3, case4, case5]
 
 case1 = Tlambda [1,2] $ Tor Tint $ Tapply 6 [Tint,Tint]
 case2 = Tlambda [1,2] $ Tapply 6 [Tvar 1, Tvar 2]
 case3 = Tlambda [1,2,3] $ Tor (Tvar 1) (Tapply 6 [Tvar 2, Tvar 3, Tvar 1])
 case4 = Tlambda [1] $ Tor (Ttest Tstring (Tvar 1) Tstring) (Tor (Tapply 6 [Tvar 1]) (Ttest Tint (Tvar 1) Tint))
+case5 = Tlambda [1] $ Tor Tint (Ttest Tint (Tvar 1) (Tapply 6 [Tint]))
 
 type Env = M.Map Int T
 type Head = (Int, [T])
