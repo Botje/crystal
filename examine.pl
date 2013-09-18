@@ -35,7 +35,7 @@ sub processMovedChecks {
 
 	my %vars = map {split /\t/} grep /\t/, split /\n/, $input;
 	for my $k (keys %vars) {
-		my @values = sort split " ", $vars{$k};
+		my @values = sort { $a <=> $b } split " ", $vars{$k};
 		$vars{$k} = [$values[0], $values[$#values/2], $values[-1]];
 	}
 	
