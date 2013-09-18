@@ -1,0 +1,6 @@
+(define (plus a b)
+	(+ a b))
+
+(define *constant* 3.1415)
+
+(plus *constant* 1)

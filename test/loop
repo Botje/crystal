@@ -1,0 +1,2 @@
+(define (loop) (loop))
+(loop)

@@ -1,0 +1,2 @@
+(define foo (make-vector 1000 0.0))
+(if (= 5 (vector-length foo)) #t #f)
