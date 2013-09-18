@@ -42,15 +42,11 @@ type Env = M.Map Int T
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
-doit fun@(Tlambda vars t) = solve $ evalState loop start
-  where start = M.singleton (6, map Tvar vars) Nothing
+doit fun@(Tlambda vars t) = solved
+  where start = fun
+        solved = solve $ iterate (visit env args) start !! 10
         env = M.singleton 6 fun
-        iterate = get >>= \invocations -> sequence_ [ visit env t args | ((f,args), Just t) <- M.assocs invocations ]
-        loop = do invocations <- get
-                  let todo = [ k | (k,Nothing) <- M.assocs invocations]
-                  if null todo
-                     then forM_ [1..10] (const iterate) >> get >>= return . fromJust . snd . head . M.assocs
-                     else mapM_ (visit env fun . snd) todo >> loop
+        args = map Tvar $ zipWith const [1..] vars
 
 solve :: T -> T
 solve fun = truncated
@@ -88,11 +84,10 @@ canonHead vs = go vs 1
         go (Tvar _:vs) id = Tvar id : go vs (id+1)
         go (v:vs) id      = v : go vs id
 
-visit :: Env -> T -> [T] -> State HeadsMap ()
-visit env fun@(Tlambda vars t) args =
-  do tree <- runReaderT (Tlambda vars <$> go t) $ (env `M.union` M.fromList (zip vars args))
-     complete (6, args) tree 
-  where go :: T -> ReaderT Env (State HeadsMap) T
+visit :: Env -> [T] -> T -> T
+visit env args fun@(Tlambda vars t) =
+  runReader (Tlambda vars <$> go t) $ (env `M.union` M.fromList (zip vars args))
+  where go :: T -> Reader Env T
         go Tbottom = return Tbottom
         go Tint = return Tint
         go Tstring = return Tstring
