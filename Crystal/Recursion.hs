@@ -31,6 +31,7 @@ data T = Tint | Tstring
 isTvar (Tvar _) = True
 isTvar ________ = False
 
+cases = [case1, case2, case3, case4]
 
 case1 = Tlambda [1,2] $ Tor Tint $ Tapply 6 [Tint,Tint]
 case2 = Tlambda [1,2] $ Tapply 6 [Tvar 1, Tvar 2]
@@ -41,16 +42,36 @@ type Env = M.Map Int T
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
-doit :: T -> T
-doit fun@(Tlambda vars t) = evalState loop start
+doit fun@(Tlambda vars t) = solve $ evalState loop start
   where start = M.singleton (6, map Tvar vars) Nothing
         env = M.singleton 6 fun
         iterate = get >>= \invocations -> sequence_ [ visit env t args | ((f,args), Just t) <- M.assocs invocations ]
         loop = do invocations <- get
                   let todo = [ k | (k,Nothing) <- M.assocs invocations]
                   if null todo
-                     then forM_ [1..10] (const iterate) >> get
+                     then forM_ [1..10] (const iterate) >> get >>= return . fromJust . snd . head . M.assocs
                      else mapM_ (visit env fun . snd) todo >> loop
+
+solve :: T -> T
+solve fun = truncated
+  where truncated = paths $ bottoms fun
+        bottoms fun = transform f fun
+          where f (Tunfold _ _) = Tbottom
+                f (Tapply  _ _) = Tbottom
+                f t             = t
+        paths (Tlambda vars t) = if null result
+                                    then Tlambda vars Tbottom
+                                    else Tlambda vars $ foldr1 Tor result 
+          where result = nub $ go t
+                go (Tlambda vars t) = [Tlambda vars t]
+                go (Tor t1 t2)      = go t1 ++ go t2
+                go (Ttest t1 t2 t)  = map (Ttest t1 t2) $ go t
+                go Tbottom          = []
+                go t                = [t]
+
+
+
+
 
 tag :: Head -> State HeadsMap ()
 tag id' = do present <- gets (M.lookup id)
@@ -72,16 +93,15 @@ visit env fun@(Tlambda vars t) args =
   do tree <- runReaderT (Tlambda vars <$> go t) $ (env `M.union` M.fromList (zip vars args))
      complete (6, args) tree 
   where go :: T -> ReaderT Env (State HeadsMap) T
+        go Tbottom = return Tbottom
         go Tint = return Tint
         go Tstring = return Tstring
         go (Tor t1 t2) = Tor <$> go t1 <*> go t2
         go (Tvar tv) = fromJust <$> asks (M.lookup tv)
         go (Tapply f vals) = do vals' <- mapM go vals
---                                 lift $ tag (f, vals')
                                 return $ Tunfold f vals'
         go (Tunfold f vals) = do vals' <- mapM go vals
                                  fun' <- go (Tvar f)
---                                  lift $ tag (f, vals')
                                  go $ apply (zip vars vals') fun'
         go (Ttest t1 t2' t) = go t2' >>= \t2 ->
           case (t1, t2) of
@@ -98,14 +118,14 @@ visit env fun@(Tlambda vars t) args =
 
 
 
-prop_foo t = isSelfApp t ==>
-               resSet [Tint, Tint] t       == resSet [Tint, Tint] t'    &&
-               resSet [Tint, Tstring] t    == resSet [Tint, Tstring] t' &&
-               resSet [Tstring, Tint] t    == resSet [Tstring, Tint] t' &&
+prop_foo (SelfAppT t) = 
+--                resSet [Tint, Tint] t       == resSet [Tint, Tint] t'    &&
+--                resSet [Tint, Tstring] t    == resSet [Tint, Tstring] t' &&
+--                resSet [Tstring, Tint] t    == resSet [Tstring, Tint] t' &&
                resSet [Tstring, Tstring] t == resSet [Tstring, Tstring] t'
-  where t' = undefined -- doit t
+  where t' = doit t
 
-resSet vals t = sort $ nub $ leaves $ simplify $ apply (zip [1,2] vals) t
+resSet vals fun@(Tlambda vars _) = sort $ nub $ leaves $ simplify $ apply (zip vars vals) fun
 
 apply :: [(Int, T)] -> T -> T
 apply m fun@(Tlambda vars body) = transform (apply' m) body
@@ -157,6 +177,12 @@ instance Arbitrary T where
   arbitrary = Tlambda [1,2] <$> sized genT
   shrink = shrinkT
 
+newtype SelfAppT = SelfAppT { unSelfApp :: T } deriving (Data, Typeable, Eq, Ord, Show)
+
+instance Arbitrary SelfAppT where
+  arbitrary = SelfAppT <$> arbitrary
+  shrink = map SelfAppT . shrink . unSelfApp
+
 selfAppT = arbitrary `suchThat` (any isSelfApp . leaves)
 
 leaves :: T -> [T]
@@ -185,10 +211,10 @@ node n = oneof nodes
 
 
 leaf = frequency leaves
-  where leaves = leaves' ++ [(1, Tapply 6 <$> mapM (\_ -> frequency leaves') [1,2])]
+  where leaves = leaves' ++ [(2, Tapply 6 <$> mapM (\_ -> frequency leaves') [1,2])]
         leaves' = [
           (2, return Tint),
           (2, return Tstring),
-          (1, Tvar <$> elements [1,2])
+          (2, Tvar <$> elements [1,2])
           ]
 
