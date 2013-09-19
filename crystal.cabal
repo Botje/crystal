@@ -6,9 +6,12 @@ category:            Development
 license:             BSD3
 author:              Dries Harnie
 maintainer:          dharnie@vub.ac.be
-build-Depends:       base,parsec>3,mtl,uniplate,pretty,bytestring,containers,split,syb,lens,cmdargs
+build-Depends:       base,parsec>3,mtl,uniplate,pretty,bytestring,containers,split,syb,lens,cmdargs,QuickCheck
 build-type:          Simple
 
 executable:          crystal
 main-is:             Crystal.hs
 ghc-options:         
+
+executable:          recursion-test
+main-is:             test/Recursion.hs

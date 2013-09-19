@@ -1,11 +1,12 @@
 {-#LANGUAGE DeriveDataTypeable #-}
-module Crystal.Recursion where
+module Main where
 
 import Control.Arrow (second)
 import Data.List
 import Debug.Trace
 import Data.Maybe
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Generics
 import Data.Generics.Uniplate.Data
 
@@ -115,13 +116,27 @@ visit env args fun@(Tlambda vars t) =
 
 
 prop_foo (SelfAppT t) = 
---                resSet [Tint, Tint] t       == resSet [Tint, Tint] t'    &&
---                resSet [Tint, Tstring] t    == resSet [Tint, Tstring] t' &&
---                resSet [Tstring, Tint] t    == resSet [Tstring, Tint] t' &&
-               resSet [Tstring, Tstring] t == resSet [Tstring, Tstring] t'
+  all (\vs -> resSet vs t == resSet vs t') $
+    [ [Tint, Tint], 
+      [Tint, Tstring],
+      [Tstring, Tint],
+      [Tstring, Tstring] ]
   where t' = doit t
 
-resSet vals fun@(Tlambda vars _) = sort $ nub $ leaves $ simplify $ apply (zip vars vals) fun
+resSet vals fun@(Tlambda vars _) = S.delete Tbottom results
+  where results = evalState (go $ Tapply 6 vals) S.empty
+        env = M.singleton 6 fun
+        go :: T -> State (S.Set (Int, [T])) (S.Set T)
+        go (Tor t1 t2) = liftM2 S.union (go t1) (go t2)
+        go (Ttest t1 t2 t) | t1 == t2  = go t
+                           | otherwise = return $ S.singleton Tbottom
+        go (Tapply f vals) = do present <- gets (S.member (f, vals))
+                                if present
+                                   then return S.empty
+                                   else do modify (S.insert (f,vals))
+                                           let Just fun@(Tlambda vars _) = M.lookup f env
+                                           go $ apply (zip vars vals) fun
+        go (t) = return $ S.singleton t
 
 apply :: [(Int, T)] -> T -> T
 apply m fun@(Tlambda vars body) = transform (apply' m) body
@@ -214,3 +229,4 @@ leaf = frequency leaves
           (2, Tvar <$> elements [1,2])
           ]
 
+main = quickCheckWith stdArgs{maxSize=5, maxSuccess=100000} prop_foo
