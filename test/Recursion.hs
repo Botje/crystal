@@ -44,10 +44,10 @@ type Env = M.Map Int T
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
-doit fun@(Tlambda vars t) = solved
+doit [(id, fun@(Tlambda vars t))] = [(id, solved)]
   where start = fun
         solved = solve $ iterate (visit env args) start !! 10
-        env = M.singleton 6 fun
+        env = M.singleton id fun
         args = map Tvar $ zipWith const [1..] vars
 
 solve :: T -> T
@@ -113,19 +113,17 @@ visit env args fun@(Tlambda vars t) =
                                             | isTvar ty -> Ttest t1 t2 <$> go t
                                             | otherwise -> return Tbottom
 
+testTypes = iterate (\l -> map (Tint:) l ++ map (Tstring:) l) [[]]
 
 
-prop_foo (SelfAppT t) = 
-  all (\vs -> resSet vs t == resSet vs t') $
-    [ [Tint, Tint], 
-      [Tint, Tstring],
-      [Tstring, Tint],
-      [Tstring, Tstring] ]
+prop_single_rec (Mutual n ~t@[(_, fun)]) = n == 1 ==> all (\vs -> resSet vs t == resSet vs t') (testTypes !! length args)
   where t' = doit t
+        Tlambda args _ = fun
 
-resSet vals fun@(Tlambda vars _) = S.delete Tbottom results
-  where results = evalState (go $ Tapply 6 vals) S.empty
-        env = M.singleton 6 fun
+
+resSet vals [(id, fun@(Tlambda vars _))] = S.delete Tbottom results
+  where results = evalState (go $ Tapply id vals) S.empty
+        env = M.singleton id fun
         go :: T -> State (S.Set (Int, [T])) (S.Set T)
         go (Tor t1 t2) = liftM2 S.union (go t1) (go t2)
         go (Ttest t1 t2 t) | t1 == t2  = go t
@@ -133,7 +131,7 @@ resSet vals fun@(Tlambda vars _) = S.delete Tbottom results
         go (Tapply f vals) = do present <- gets (S.member (f, vals))
                                 if present
                                    then return S.empty
-                                   else do modify (S.insert (f,vals))
+                                   else do modify (S.insert (f, vals))
                                            let Just fun@(Tlambda vars _) = M.lookup f env
                                            go $ apply (zip vars vals) fun
         go (t) = return $ S.singleton t
@@ -156,7 +154,7 @@ simplify = transform f
 instance Show T where
   showsPrec d Tint = showString "int"
   showsPrec d Tstring = showString "string"
-  showsPrec d (Tvar i) = showString (return (['a'..'z'] !! (i-1)))
+  showsPrec d (Tvar i) | i > 0 = showString (return (['a'..'z'] !! (i-1)))
   showsPrec d Tbottom = showString "⊥"
   showsPrec d (Tor t1 t2) =
     showParen True $
@@ -174,7 +172,7 @@ instance Show T where
   showsPrec d (Tunfold f ts) = showsPrec d (Tapply f ts)
   showsPrec d (Tapply f ts) = 
     showParen True $
-      showsPrec (d+1) (Tvar f) .
+      (['A'..'Z'] !! abs f :) .
       showString " " .
       foldr1 (\a rest -> a . showString " " . rest) (map (showsPrec (d+1)) ts)
   showsPrec d (Tlambda vars t) =
@@ -184,17 +182,18 @@ instance Show T where
       showString " " . 
       showsPrec (d+1) t
 
-instance Arbitrary T where
-  arbitrary = Tlambda [1,2] <$> sized genT
-  shrink = shrinkT
+data Mutual = Mutual Int [(Int, T)] deriving (Data, Typeable, Eq, Ord, Show)
 
-newtype SelfAppT = SelfAppT { unSelfApp :: T } deriving (Data, Typeable, Eq, Ord, Show)
+instance Arbitrary Mutual where
+  arbitrary = sized mutualGenT
+  shrink = const []
 
-instance Arbitrary SelfAppT where
-  arbitrary = SelfAppT <$> arbitrary
-  shrink = map SelfAppT . shrink . unSelfApp
+mutualGenT n = do numFuncs <- choose (1,3)
+                  let names = map negate [1..numFuncs]
+                  funcs <- replicateM numFuncs (genFunc n names)
+                  return $ Mutual numFuncs (zip names funcs)
 
-selfAppT = arbitrary `suchThat` (any isSelfApp . leaves)
+genFunc n names = choose (1,3) >>= \args -> Tlambda [1..args] <$> genT names args n
 
 leaves :: T -> [T]
 leaves (Tor a b) = leaves a ++ leaves b
@@ -202,31 +201,22 @@ leaves (Ttest _ _ t) = leaves t
 leaves (Tlambda _ t) = leaves t
 leaves t = [t]
 
-isSelfApp :: T -> Bool
-isSelfApp (Tapply 6 _) = True
-isSelfApp _            = False
+genT names args n = case n of
+                   0 -> leaf
+                   _ -> node n 
+  where tvar = Tvar <$> choose (1,args)
+        ground = elements [Tint, Tstring]
+        node n = oneof nodes
+          where n_1 = n - 1
+                nodes = [leaf,
+                         liftM2 Tor (genT names args n_1) (genT names args n_1),
+                         Ttest <$> ground <*> tvar <*> genT names args n_1]
+        leaf = frequency leaves
+          where leaves = leaves' ++ [(2, Tapply <$> elements names <*> replicateM args (frequency leaves'))]
+                leaves' = [
+                  (2, ground),
+                  (2, tvar)
+                  ]
 
-shrinkT (Tor a b) = [a,b]
-shrinkT (Ttest _ _ t) = [t]
-shrinkT (Tlambda vs t) = [ Tlambda vs t' | t' <- shrink t]
-shrinkT _ = []
-
-genT 0 = leaf
-genT n = node n 
-
-node n = oneof nodes
-  where n_1 = n - 1
-        nodes = [leaf,
-                 liftM2 Tor (genT n_1) (genT n_1),
-                 Ttest <$> oneof [return Tint, return Tstring] <*> oneof [return (Tvar 1), return (Tvar 2)] <*> genT n_1]
-
-
-leaf = frequency leaves
-  where leaves = leaves' ++ [(2, Tapply 6 <$> mapM (\_ -> frequency leaves') [1,2])]
-        leaves' = [
-          (2, return Tint),
-          (2, return Tstring),
-          (2, Tvar <$> elements [1,2])
-          ]
-
-main = quickCheckWith stdArgs{maxSize=5, maxSuccess=100000} prop_foo
+main = do quickCheckWith stdArgs{maxSize=5, maxSuccess=1000} prop_single_rec
+          --quickCheckWith stdArgs{maxSize=5, maxSuccess=1000} prop_mutual_rec
