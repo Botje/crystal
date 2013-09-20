@@ -172,7 +172,7 @@ instance Show T where
   showsPrec d (Tunfold f ts) = showsPrec d (Tapply f ts)
   showsPrec d (Tapply f ts) = 
     showParen True $
-      (['A'..'Z'] !! abs f :) .
+      (['A'..'Z'] !! abs (f+1) :) .
       showString " " .
       foldr1 (\a rest -> a . showString " " . rest) (map (showsPrec (d+1)) ts)
   showsPrec d (Tlambda vars t) =
@@ -190,8 +190,10 @@ instance Arbitrary Mutual where
 
 mutualGenT n = do numFuncs <- choose (1,3)
                   let names = map negate [1..numFuncs]
-                  funcs <- replicateM numFuncs (genFunc n names)
+                  funcs <- replicateM numFuncs (genFunc n names) `suchThat` allCalled names
                   return $ Mutual numFuncs (zip names funcs)
+
+allCalled names funcs = sort names == sort (nub [ n | Tapply n _ <- concatMap leaves funcs ])
 
 genFunc n names = choose (1,3) >>= \args -> Tlambda [1..args] <$> genT names args n
 
@@ -218,5 +220,5 @@ genT names args n = case n of
                   (2, tvar)
                   ]
 
-main = do quickCheckWith stdArgs{maxSize=5, maxSuccess=1000} prop_single_rec
+main = do quickCheckWith stdArgs{maxSize=5, maxSuccess=10000} prop_single_rec
           --quickCheckWith stdArgs{maxSize=5, maxSuccess=1000} prop_mutual_rec
