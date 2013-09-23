@@ -3,6 +3,7 @@ module Main where
 
 import Control.Arrow (second)
 import Data.List
+import Data.Function
 import Debug.Trace
 import Data.Maybe
 import qualified Data.Map as M
@@ -116,9 +117,9 @@ visit env args fun@(Tlambda vars t) =
 testTypes = iterate (\l -> map (Tint:) l ++ map (Tstring:) l) [[]]
 
 
-prop_single_rec (Mutual n ~t@[(_, fun)]) = n == 1 ==> all (\vs -> resSet vs t == resSet vs t') (testTypes !! length args)
-  where t' = doit t
-        Tlambda args _ = fun
+prop_single_rec mut@(Mutual n ~[fun]) = n == 1 ==> all (\vs -> resSet vs [fun] == resSet vs [fun']) (testTypes !! length args)
+  where Mutual _ [fun'] = solveMutual mut
+        Tlambda args _ = snd fun
 
 
 resSet vals [(id, fun@(Tlambda vars _))] = S.delete Tbottom results
@@ -150,14 +151,22 @@ unbraid t = S.singleton t
 
 unLambda (Tlambda _ bod) = bod
 
-canon = id
+canon :: T -> T
+canon t = descend [] t
+  where descend env (Ttest t1 t2 t)
+          | t1 == t2 = descend env t
+          | all (`elem` [Tint, Tstring]) [t1, t2] = Tbottom
+          | otherwise = let Tvar tv = t2 in descend ((t1,t2):env) $ subst [(tv, t1)] t
+        descend env t = foldr (\(t1,t2) rest -> Ttest t1 t2 rest) t $ sortBy (compare `on` snd) env
+          
+          
 
 splitThread :: T -> (T -> T, T)
 splitThread (Ttest t1 t2 t) = (Ttest t1 t2 . prefix', apply)
   where (prefix', apply) = splitThread t
 splitThread t = (id, t)
 
-doit' (Mutual n funs) = map solve' funs
+solveMutual (Mutual n funs) = Mutual n $ map solve' funs
   where unbraidedFuns = M.fromList $ map (second (unbraid . unLambda)) funs
         solve' (id, fun@(Tlambda args body)) = (id, finalType)
           where finalType = braid args $ evalState (loop $ S.singleton $ Tapply id (map Tvar args)) S.empty
@@ -166,9 +175,6 @@ doit' (Mutual n funs) = map solve' funs
                                  case M.lookup id unbraidedFuns of
                                       Nothing      -> return $ S.singleton thread
                                       Just threads -> return $ S.map (canon . prefix . subst (zip [1..] args)) threads
---                 walk c@(Tapply id args) = do modify $ S.insert c
---                                              let Just s = M.lookup id unbraidedFuns
---                                              return s
                 loop :: S.Set T -> State (S.Set T) (S.Set T)
                 loop s = do seen <- get
                             let (applies, concrete) = S.partition (isApply . head . leaves) s
@@ -182,10 +188,11 @@ isApply (Tapply _ _) = True
 isApply ____________ = False
 
 apply :: [(Int, T)] -> T -> T
-apply m fun@(Tlambda vars body) = subst m body 
+apply m fun@(Tlambda _ body) = subst m body 
 
+subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
-  where apply' m (Tvar x) = fromJust $ lookup x m
+  where apply' m (Tvar x) = maybe (Tvar x) id $ lookup x m
         apply' m t = t
 
 simplify = transform f
@@ -267,5 +274,5 @@ genT names args n = case n of
                   (2, tvar)
                   ]
 
-main = do quickCheckWith stdArgs{maxSize=5, maxSuccess=10000} prop_single_rec
+main = do quickCheckWith stdArgs{maxSize=5, maxSuccess=100000} prop_single_rec
           --quickCheckWith stdArgs{maxSize=5, maxSuccess=1000} prop_mutual_rec
