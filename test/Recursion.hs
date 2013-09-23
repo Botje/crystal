@@ -34,11 +34,11 @@ isTvar ________ = False
 
 cases = [case1, case2, case3, case4, case5]
 
-case1 = Tlambda [1,2] $ Tor Tint $ Tapply 6 [Tint,Tint]
-case2 = Tlambda [1,2] $ Tapply 6 [Tvar 1, Tvar 2]
-case3 = Tlambda [1,2,3] $ Tor (Tvar 1) (Tapply 6 [Tvar 2, Tvar 3, Tvar 1])
-case4 = Tlambda [1] $ Tor (Ttest Tstring (Tvar 1) Tstring) (Tor (Tapply 6 [Tvar 1]) (Ttest Tint (Tvar 1) Tint))
-case5 = Tlambda [1] $ Tor Tint (Ttest Tint (Tvar 1) (Tapply 6 [Tint]))
+case1 = Mutual 1 [(-1, Tlambda [1,2] $ Tor Tint $ Tapply (-1) [Tint,Tint])]
+case2 = Mutual 1 [(-1, Tlambda [1,2] $ Tapply (-1) [Tvar 1, Tvar 2])]
+case3 = Mutual 1 [(-1, Tlambda [1,2,3] $ Tor (Tvar 1) (Tapply (-1) [Tvar 2, Tvar 3, Tvar 1]))]
+case4 = Mutual 1 [(-1, Tlambda [1] $ Tor (Ttest Tstring (Tvar 1) Tstring) (Tor (Tapply (-1) [Tvar 1]) (Ttest Tint (Tvar 1) Tint)))]
+case5 = Mutual 1 [(-1, Tlambda [1] $ Tor Tint (Ttest Tint (Tvar 1) (Tapply (-1) [Tint])))]
 
 type Env = M.Map Int T
 type Head = (Int, [T])
@@ -136,8 +136,55 @@ resSet vals [(id, fun@(Tlambda vars _))] = S.delete Tbottom results
                                            go $ apply (zip vars vals) fun
         go (t) = return $ S.singleton t
 
+braid :: [Int] -> S.Set T -> T
+braid vars result = if S.null result
+                       then Tlambda vars Tbottom
+                       else Tlambda vars $ foldr1 Tor $ S.elems result 
+
+unbraid :: T -> S.Set T
+unbraid (Tor t1 t2) = S.union (unbraid t1) (unbraid t2)
+unbraid (Ttest t1 t2 t) | t1 == t2  = unbraid t
+                        | isTvar t2 = S.map (Ttest t1 t2) $ unbraid t
+                        | otherwise = S.empty
+unbraid t = S.singleton t
+
+unLambda (Tlambda _ bod) = bod
+
+canon = id
+
+splitThread :: T -> (T -> T, T)
+splitThread (Ttest t1 t2 t) = (Ttest t1 t2 . prefix', apply)
+  where (prefix', apply) = splitThread t
+splitThread t = (id, t)
+
+doit' (Mutual n funs) = map solve' funs
+  where unbraidedFuns = M.fromList $ map (second (unbraid . unLambda)) funs
+        solve' (id, fun@(Tlambda args body)) = (id, finalType)
+          where finalType = braid args $ evalState (loop $ S.singleton $ Tapply id (map Tvar args)) S.empty
+                walk thread = do modify (S.insert thread)
+                                 let (prefix, Tapply id args) = splitThread thread
+                                 case M.lookup id unbraidedFuns of
+                                      Nothing      -> return $ S.singleton thread
+                                      Just threads -> return $ S.map (canon . prefix . subst (zip [1..] args)) threads
+--                 walk c@(Tapply id args) = do modify $ S.insert c
+--                                              let Just s = M.lookup id unbraidedFuns
+--                                              return s
+                loop :: S.Set T -> State (S.Set T) (S.Set T)
+                loop s = do seen <- get
+                            let (applies, concrete) = S.partition (isApply . head . leaves) s
+                            let (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
+                            if S.null todoApplies
+                               then return $ concrete
+                               else do expanded <- S.unions <$> mapM walk (S.elems todoApplies)
+                                       loop (expanded `S.union` concrete)
+
+isApply (Tapply _ _) = True
+isApply ____________ = False
+
 apply :: [(Int, T)] -> T -> T
-apply m fun@(Tlambda vars body) = transform (apply' m) body
+apply m fun@(Tlambda vars body) = subst m body 
+
+subst m body = transform (apply' m) body
   where apply' m (Tvar x) = fromJust $ lookup x m
         apply' m t = t
 
