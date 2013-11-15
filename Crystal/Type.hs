@@ -160,26 +160,30 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                    _                             ->
                                      do let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
                                         return $ Expr (l' :*: applType) (Appl e_f e_args)
-          (LetRec [(nam, exp)] bod) -> do var <- freshTVar
-                                          let var_tl = LVar var :*: TVar var
-                                          Expr (e_l :*: TFun abod tbod) _ <- local (extend nam var_tl) (go exp)
-                                          let t_l = simplify $ leaves tbod
-                                          let e_tl = e_l :*: TFun abod t_l
-                                          (e_1', t_1) <- local (extend nam e_tl) (goT exp)
-                                          (e_bod, t_bod) <- local (extend nam e_tl) (goT bod)
-                                          return $ Expr (l' :*: t_bod) (LetRec [(nam, e_1')] e_bod)
           (Begin exps) -> do exps_ <- mapM go exps 
                              let t_last = last exps_ ^. ann._2
                              return $ Expr (l' :*: t_last) (Begin exps_)
           -- TODO: More precision for mutually recursive functions
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
                                    types = map (\(Expr l (Lambda vs _)) -> LSource l :*: TFun [1..length vs] TAny) funs
-                               in local (extendMany nams types) $ do
-                                    funs_ <- mapM go funs
-                                    (e_bod, t_bod) <- goT bod
-                                    return $ Expr (l' :*: t_bod) $ LetRec (zip nams funs_) e_bod
+                               in do vars <- replicateM (length nams) freshTVar
+                                     let bnds_tl = map (\var -> LVar var :*: TVar var) vars
+                                     funs_tl <- local (extendMany nams bnds_tl) $ mapM go funs
+                                     let t_funs = map getType funs_tl
+                                     let t_funs' = solveLetrec vars t_funs
+                                     let funs_tl' = zipWith (\var t -> LVar var :*: t) vars t_funs'
+                                     local (extendMany nams funs_tl') $
+                                       do e_funs <- mapM go funs
+                                          (e_bod, t_bod) <- goT bod
+                                          return $ Expr (l' :*: t_bod) (LetRec (zip nams e_funs) e_bod)
+                                     
+                                     
+--                                     (e_bod, t_bod) <- goT bod
+--                                     return $ Expr (l' :*: t_bod) $ LetRec (zip nams funs_) e_bod
           _ -> error ("Don't know how to infer type for " ++ show e)
 
+solveLetrec :: [Label] -> [Type] -> [Type]
+solveLetrec labs types = types
 
 type Env = M.Map Ident TypedLabel
 
