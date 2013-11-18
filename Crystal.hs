@@ -13,6 +13,7 @@ import Text.Printf
 import Crystal.AST
 import Crystal.Check
 import Crystal.Config
+import Crystal.Infer
 import Crystal.Misc
 import Crystal.Parser
 import Crystal.Post
