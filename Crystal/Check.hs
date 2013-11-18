@@ -52,7 +52,7 @@ introduceChecks expr = return $ go expr
                Ref r                -> simply (Ref r)
                If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
-               LetRec [(id, e)] bod -> simply (LetRec [(id, go e)] (go bod))
+               LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
                Lambda ids bod       -> simply (Lambda ids (go bod))
                Begin es             -> simply (Begin $ map go es)
 
@@ -102,7 +102,7 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                Lit lit              -> simple
                Ref r                -> simple
                If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck])) e
-               LetRec [(id, e)] bod -> simple
+               LetRec bnds bod      -> simple
                Lambda ids bod       -> simple
                Begin exps           -> 
                  Expr (l :*: combinedChecks) $ Begin $ map (set annCheck Cnone) exps
@@ -143,12 +143,11 @@ eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) 
              Let [(id, e)] bod    -> do e_ <- go e
                                         bod_ <- local (M.insert id TAny) $ go bod
                                         return $ Let [(id, e_)] bod_
-             LetRec [(id, e)] bod ->
-               case e of
-                 Expr _ (Lambda ids _) ->
-                   do let t_f = TFun (map (const 0) ids) TAny
-                      (e_, bod_) <- local (M.insert id t_f) $ liftM2 (,) (go e) (go bod)
-                      return $ LetRec [(id, e_)] bod_
+             LetRec bnds bod ->
+               local (M.union $ M.fromList (bnds & (mapped._2) .~ TAny)) $ do
+                 bnds' <- mapM (\(nam, exp) -> go exp >>= \l -> return (nam, l)) bnds
+                 bod'  <- go bod
+                 return $ LetRec bnds' bod'
              Lambda ids bod       -> Lambda ids `liftM` local (M.union (defaultEnv ids)) (go bod)
              Begin exps           -> Begin `liftM` mapM go exps
         defaultEnv ids = M.fromList [ (x, TAny) | x <- ids ]
@@ -204,7 +203,7 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                  Ref r                -> return ()
                  If cond cons alt     -> descend cond >> descend cons >> descend alt
                  Let [(id, e)] bod    -> descend e >> descend bod
-                 LetRec [(id, e)] bod -> descend e >> descend bod
+                 LetRec bnds bod      -> mapM (descend.snd) bnds >> descend bod
                  Lambda ids bod       -> descend bod
                  Begin exps           -> zipWithM_ go [depth+1..] exps
           where descend = go (depth + 1)
@@ -228,7 +227,7 @@ reifyChecks = return . go
                  Ref r                -> simply (Ref r)
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                  Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
-                 LetRec [(id, e)] bod -> simply (LetRec [(id, go e)] (go bod))
+                 LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
                  Lambda ids bod       -> simply (Lambda ids (go bod))
                  Begin es             -> simply (Begin $ map go es)
 

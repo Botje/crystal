@@ -66,7 +66,7 @@ generateDumb e = go e
                  Ref r                -> simply (Ref r)
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                  Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
-                 LetRec [(id, e)] bod -> simply (LetRec [(id, go e)] (go bod))
+                 LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
                  Lambda ids bod       -> simply (Lambda ids (go bod))
                  Begin es             -> simply (Begin $ map go es)
 
@@ -119,7 +119,6 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Begin exps) -> do exps_ <- mapM go exps 
                              let t_last = last exps_ ^. ann._2
                              return $ Expr (l' :*: t_last) (Begin exps_)
-          -- TODO: More precision for mutually recursive functions
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
                                    types = map (\(Expr l (Lambda vs _)) -> LSource l :*: TFun [1..length vs] TAny) funs
                                in do vars <- replicateM (length nams) freshTVar
