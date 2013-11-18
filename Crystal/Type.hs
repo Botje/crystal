@@ -21,11 +21,11 @@ type TVar = Int
 freshTVar :: (MonadState TVar m) => m TVar
 freshTVar = nextSeq
 
-data TLabel = LSource Int
+data TLabel = LSource Label
             | LPrim String
             | LVar TVar
             | LSyn
-              deriving (Show, Eq, Data, Typeable)
+              deriving (Show, Eq, Ord, Data, Typeable)
 
 type TypedLabel = TLabel :*: Type
 
@@ -47,7 +47,7 @@ data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TC
           | TAppl Type [TypedLabel]
           | TError
           | TAny
-            deriving (Show, Eq, Data, Typeable)
+            deriving (Show, Eq, Ord, Data, Typeable)
 
 data VarFun = VarFun { vfName  :: Ident,
                        vfLabel :: TLabel,
@@ -57,6 +57,9 @@ data VarFun = VarFun { vfName  :: Ident,
 
 instance Eq VarFun where
   (==) = (==) `on` vfName
+
+instance Ord VarFun where
+  compare = compare `on` vfName
 
 instance Show VarFun where
   showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s

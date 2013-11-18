@@ -5,7 +5,7 @@ module Crystal.Tuple where
 import Control.Lens
 import Data.Generics
 
-data a :*: b = a :*: b deriving (Show, Eq, Data, Typeable)
+data a :*: b = a :*: b deriving (Show, Eq, Ord, Data, Typeable)
 infix 8 :*:
 
 instance Field1 (a :*: b) (a' :*: b) a a' where
