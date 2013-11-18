@@ -120,9 +120,9 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                              let t_last = last exps_ ^. ann._2
                              return $ Expr (l' :*: t_last) (Begin exps_)
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
-                                   types = map (\(Expr l (Lambda vs _)) -> LSource l :*: TFun [1..length vs] TAny) funs
                                in do vars <- replicateM (length nams) freshTVar
-                                     let bnds_tl = map (\var -> LVar var :*: TVar var) vars
+                                     let mkFun var n = TFun [1..n] (TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]])
+                                     let bnds_tl = zipWith (\var (Expr l (Lambda vs _)) -> LSource l :*: mkFun var (length vs)) vars funs
                                      funs_tl <- local (extendMany nams bnds_tl) $ mapM go funs
                                      let t_funs = map getType funs_tl
                                      let t_funs' = solveLetrec vars t_funs
