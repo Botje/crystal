@@ -13,5 +13,5 @@ executable:          crystal
 main-is:             Crystal.hs
 ghc-options:         
 
-executable:          recursion-test
-main-is:             test/Recursion.hs
+-- executable:          recursion-test
+-- main-is:             test/Recursion.hs

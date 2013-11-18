@@ -45,6 +45,7 @@ data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TC
           | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypedLabel]
+          | TUnfold Type [TypedLabel]
           | TError
           | TAny
             deriving (Show, Eq, Ord, Data, Typeable)
@@ -53,6 +54,12 @@ data VarFun = VarFun { vfName  :: Ident,
                        vfLabel :: TLabel,
                        vfFun   :: [TypedLabel] -> TLabel -> Type }
                  deriving (Data, Typeable)
+
+isTVar (TVar _) = True
+isTVar ________ = False
+
+isApply (TAppl _ _) = True
+isApply ____________ = False
 
 
 instance Eq VarFun where
@@ -63,3 +70,6 @@ instance Ord VarFun where
 
 instance Show VarFun where
   showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s
+
+concreteTypes :: [Type]
+concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TNull, TChar]

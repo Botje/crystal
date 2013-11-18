@@ -15,6 +15,7 @@ import qualified Data.Map as M
 import Crystal.AST
 import Crystal.Config
 import Crystal.Misc
+import Crystal.RecursiveType
 import Crystal.Seq
 import Crystal.Tuple
 import Crystal.Type
@@ -131,14 +132,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                        do e_funs <- mapM go funs
                                           (e_bod, t_bod) <- goT bod
                                           return $ Expr (l' :*: t_bod) (LetRec (zip nams e_funs) e_bod)
-                                     
-                                     
---                                     (e_bod, t_bod) <- goT bod
---                                     return $ Expr (l' :*: t_bod) $ LetRec (zip nams funs_) e_bod
           _ -> error ("Don't know how to infer type for " ++ show e)
-
-solveLetrec :: [Label] -> [Type] -> [Type]
-solveLetrec labs types = types
 
 type Env = M.Map Ident TypedLabel
 
