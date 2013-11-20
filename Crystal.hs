@@ -37,7 +37,7 @@ process config fname cts =
                        when (not (null results)) $ do
                          putStr "\n--- STATS ---\n"
                          forM_ results $ \(header,cts) ->
-                           printf "<%s>\n%s\n</%s>\n" header cts header
+                           printf "<%s>\n%s%s</%s>\n" header cts (if last cts == '\n' then "" else "\n") header
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of

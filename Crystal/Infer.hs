@@ -43,10 +43,19 @@ trivial _ _ = False
 
 type Infer a = ReaderT Env (State TVar) a
 
+dumpTypes :: Expr TypedLabel -> [(Ident, Type)]
+dumpTypes (Expr _ (Let bnds bod))    = over (mapped._2) getType bnds ++ dumpTypes bod
+dumpTypes (Expr _ (LetRec bnds bod)) = over (mapped._2) getType bnds ++ dumpTypes bod
+dumpTypes (Expr _ _) = []
+
 generate :: Expr Label -> Step (Expr TypedLabel)
 generate ast = do ts <- asks (^.cfgTypeSys)
                   case ts of
-                       Smart -> return $ generateSmart ast
+                       Smart -> do let ret = generateSmart ast
+                                   dump <- asks (^.cfgDumpTypes)
+                                   when dump $ report "Types dump" $
+                                     unlines [ show k ++ " ==> " ++ show v | (k,v) <- sort $ dumpTypes ret ]
+                                   return ret
                        Dumb  -> return $ generateDumb  ast
 
 generateDumb :: Expr Label -> Expr TypedLabel

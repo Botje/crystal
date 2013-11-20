@@ -12,7 +12,8 @@ data Config =
   Config { _cfgTypeSys   :: TSType,
            _cfgInputFile :: String,
            _cfgCheckMobility :: Bool,
-           _cfgMobilityStats :: Bool
+           _cfgMobilityStats :: Bool,
+           _cfgDumpTypes :: Bool
          } deriving (Show, Eq, Data, Typeable)
 
 $(makeLenses ''Config)
@@ -21,6 +22,8 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                      , _cfgInputFile = def &= args &= typFile
                      , _cfgCheckMobility = enum [ True &= help "Test mobility (default)" &= name "mobility" &= explicit,
                                                   False &= help "Disable mobility" &= name "no-mobility" &= explicit ]
-                     , _cfgMobilityStats = enum [ True &= help "Generate mobility stats (default)" &= name "stats" &= explicit,
-                                                  False &= help "Disable stats generation" &= name "no-stats" &= explicit]
+                     , _cfgMobilityStats = enum [ False &= help "Don't generate mobility stats (default)" &= name "no-stats" &= explicit,
+                                                  True &= help "Generate mobility stats" &= name "stats" &= explicit ]
+                     , _cfgDumpTypes = enum [ False &= help "Don't dump top-level types (default)" &= name "no-types" &= explicit,
+                                              True  &= help "Dump top-level types" &= name "types" &= explicit ]
                      }

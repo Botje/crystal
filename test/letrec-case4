@@ -1,0 +1,8 @@
+(define (f x)
+	(if #t
+		(string-append x "hallo")
+		(if #t
+			(f x)
+			(+ x 1))))
+
+#t

@@ -1,0 +1,6 @@
+(define (f x y)
+	(if #t
+		5
+		(f 1 2)))
+
+#t
