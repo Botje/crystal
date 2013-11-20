@@ -21,7 +21,15 @@ import Crystal.Tuple
 import Crystal.Type
 
 infer :: Expr Label -> Step (Expr TypedLabel)
-infer = simplifyLabels <=< generate
+infer = maybeDumpTypes <=< simplifyLabels <=< generate
+
+maybeDumpTypes :: Expr TypedLabel -> Step (Expr TypedLabel)
+maybeDumpTypes expr =
+  do dump <- asks (^.cfgDumpTypes)
+     when dump $ do
+       let types = [ show k ++ " ==> " ++ show v | (k,v) <- sort $ dumpTypes expr ]
+       report "Types dump" $ unlines types
+     return expr
 
 simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
 simplifyLabels = return . transformBi simplify
@@ -29,12 +37,16 @@ simplifyLabels = return . transformBi simplify
 simplify :: Type -> Type
 simplify (Tor ts) | length ts' == 1 = head ts'
                   | otherwise       = Tor ts'
-  where (ts') = nub $ map simplify ts
+  where (ts') = nub $ concatMap (expandOr . simplify) ts
 simplify (TFun args body) = TFun args (simplify body)
 simplify (TIf l t_1 t_2 t) | trivial t_1' t_2' = t'
                            | otherwise         = TIf l t_1' t_2' t'
   where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
 simplify t = t
+
+expandOr :: Type -> [Type]
+expandOr (Tor xs) = xs
+expandOr t = [t]
 
 trivial (TFun args_1 TAny) (TFun args_2 _) = length args_1 == length args_2
 trivial (TFun _ _) (TVarFun _) = True
@@ -51,11 +63,7 @@ dumpTypes (Expr _ _) = []
 generate :: Expr Label -> Step (Expr TypedLabel)
 generate ast = do ts <- asks (^.cfgTypeSys)
                   case ts of
-                       Smart -> do let ret = generateSmart ast
-                                   dump <- asks (^.cfgDumpTypes)
-                                   when dump $ report "Types dump" $
-                                     unlines [ show k ++ " ==> " ++ show v | (k,v) <- sort $ dumpTypes ret ]
-                                   return ret
+                       Smart -> return $ generateSmart ast
                        Dumb  -> return $ generateDumb  ast
 
 generateDumb :: Expr Label -> Expr TypedLabel
