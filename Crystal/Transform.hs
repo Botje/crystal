@@ -17,7 +17,7 @@ import qualified Data.Set as S
 import Data.Generics.Biplate
 
 import Crystal.AST
-import Crystal.Infer
+import Crystal.Env
 import Crystal.Misc
 import Crystal.Pretty
 import Crystal.Seq
