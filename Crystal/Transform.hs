@@ -2,6 +2,7 @@
 module Crystal.Transform (transformC) where
 
 import Control.Arrow
+import Control.Applicative
 import Control.Lens
 import Control.Monad
 import Control.Monad.RWS
@@ -16,14 +17,15 @@ import qualified Data.Set as S
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Infer
 import Crystal.Misc
 import Crystal.Pretty
 import Crystal.Seq
 
 transformC :: Expr Label -> Step (Expr Label)
-transformC = toANF <=< expandMacros <=< flattenLets <=< splitLetRecs
+transformC = toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
 
-splitLetRecs, flattenLets, expandMacros, toANF :: Expr Label -> Step (Expr Label)
+alphaRename, splitLetRecs, flattenLets, expandMacros, toANF :: Expr Label -> Step (Expr Label)
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
@@ -149,3 +151,42 @@ splitLetRecs expr@(Expr start _) = return $ evalState (transformBiM f expr >>= u
 star :: M.Map Ident Idents -> Idents -> Idents
 star fv names = if names == names' then names' else star fv names'
   where names' = names `S.union` S.unions [ s | n <- S.elems names, Just s <- return $ M.lookup n fv ]
+
+alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.keysSet startMap)
+  where startMap = M.mapWithKey (\k _ -> k) main_env
+        f :: Expr Label -> RWS (M.Map Ident Ident) [Int] (S.Set Ident) (Expr Label)
+        f (Expr l e) =
+          let simply ie = Expr l <$> ie
+              rename r = asks (M.lookup r) >>= return . fromJust
+              withNewNames ids comp =
+                do seenSet <- get
+                   let (seen, notseen) = partition (`S.member` seenSet) ids
+                   put $ S.fromList notseen `S.union` seenSet
+                   let newnames = zipWith (\s i -> (s, concat [s, "-", show i])) seen [1+S.size seenSet..]
+                   let oldnames = zip notseen notseen
+                   local (M.union $ M.fromList (newnames ++ oldnames)) comp
+          in
+            case e of
+                 Lit  lit -> simply $ return $ Lit lit
+                 Ref  r   -> do simply $ Ref <$> rename r
+                 Appl fun args -> simply $ Appl <$> f fun <*> mapM f args
+                 Lambda ids bod ->
+                   do withNewNames ids $ do
+                        ids' <- mapM rename ids
+                        simply $ Lambda ids' <$> f bod
+                 Begin exps -> simply $ Begin <$> mapM f exps
+                 If cond cons alt -> simply $ If <$> f cond <*> f cons <*> f alt
+                 Let bnds bod ->
+                   do let (ids, exprs) = unzip bnds
+                      exprs' <- mapM f exprs
+                      withNewNames ids $ do
+                        ids' <- mapM rename ids
+                        bod' <- f bod
+                        simply $ return $ Let (zip ids' exprs') bod'
+                 LetRec bnds bod ->
+                    do let (ids, exprs) = unzip bnds
+                       withNewNames ids $ do
+                         ids' <- mapM rename ids
+                         exprs' <- mapM f exprs
+                         bod' <- f bod
+                         simply $ return $ LetRec (zip ids' exprs') bod'
