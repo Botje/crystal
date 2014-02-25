@@ -108,11 +108,15 @@ expandMacros expr@(Expr start _) = return $ evalState (transformBiM f expr >>= u
                             return letExpr
         addCarStep bod 'a' = makeExpr (Ref "car") >>= \r -> makeExpr (Appl r [bod]) 
         addCarStep bod 'd' = makeExpr (Ref "cdr") >>= \r -> makeExpr (Appl r [bod]) 
+
+carSteps = init . tail
                         
+carLike :: Ident -> Bool
 carLike [] = False
 carLike n  = head n == 'c' && last n == 'r' && all (`elem` "ad") (carSteps n)
 
-carSteps = init . tail
+isMacro :: Ident -> Bool
+isMacro r = r `elem` ["and", "or", "with-input-from-file", "with-output-to-file"] || carLike r
 
 updateRootLabel :: Expr Label -> State Label (Expr Label)
 updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
@@ -168,7 +172,8 @@ alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.ke
           in
             case e of
                  Lit  lit -> simply $ return $ Lit lit
-                 Ref  r   -> do simply $ Ref <$> rename r
+                 Ref  r | isMacro r -> simply $ return $ Ref r
+                        | otherwise -> simply $ Ref <$> rename r
                  Appl fun args -> simply $ Appl <$> f fun <*> mapM f args
                  Lambda ids bod ->
                    do withNewNames ids $ do
