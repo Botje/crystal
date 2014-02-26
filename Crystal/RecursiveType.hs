@@ -21,7 +21,6 @@ import Control.Applicative
 import Test.QuickCheck
 import Text.Show
 
-import Crystal.AST
 import Crystal.Tuple
 import Crystal.Type
 
