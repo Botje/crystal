@@ -11,6 +11,7 @@ import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Reader
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Crystal.AST
 import Crystal.Seq
@@ -22,21 +23,27 @@ freshTVar :: (MonadState TVar m) => m TVar
 freshTVar = nextSeq
 
 data TLabel = LSource Label
-            | LPrim String
+            | LPrim Ident
             | LVar TVar
             | LSyn
               deriving (Show, Eq, Ord, Data, Typeable)
 
-type TypedLabel = TLabel :*: Type
+type Effect = S.Set [Ident]
 
-getType :: Expr TypedLabel -> Type
-getType (Expr (_ :*: t) _) = t
+type TypedLabel = TLabel :*: (Type :*: Effect)
+type TypeNLabel = TLabel :*: Type
 
 getLabel :: Expr TypedLabel -> TLabel
 getLabel (Expr (l :*: _) _) = l
 
-getTypeAndLabel :: Expr TypedLabel -> TypedLabel
-getTypeAndLabel (Expr tl _) = tl
+getType :: Expr TypedLabel -> Type
+getType (Expr (_ :*: t :*: _) _) = t
+
+getEffect :: Expr TypedLabel -> Effect
+getEffect (Expr (_ :*: _ :*: ef) _) = ef
+
+getTypeAndLabel :: Expr TypedLabel -> TypeNLabel
+getTypeAndLabel (Expr (t :*: l :*: _) _) = t :*: l
 
 data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar
           | Tor [Type]
@@ -44,15 +51,15 @@ data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TC
           | TFun [TVar] Type
           | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
-          | TAppl Type [TypedLabel]
-          | TUnfold Type [TypedLabel]
+          | TAppl Type [TypeNLabel]
+          | TUnfold Type [TypeNLabel]
           | TError
           | TAny
             deriving (Show, Eq, Ord, Data, Typeable)
 
 data VarFun = VarFun { vfName  :: Ident,
                        vfLabel :: TLabel,
-                       vfFun   :: [TypedLabel] -> TLabel -> Type }
+                       vfFun   :: [TypeNLabel] -> TLabel -> Type }
                  deriving (Data, Typeable)
 
 isTVar (TVar _) = True

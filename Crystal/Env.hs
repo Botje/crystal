@@ -6,6 +6,8 @@ import Crystal.AST
 import Crystal.Tuple
 import Crystal.Type
 
+import Data.Monoid
+
 type Env = M.Map Ident TypedLabel
 
 main_env :: Env
@@ -87,7 +89,6 @@ main_env = M.fromListWith or [
     "read"          --> TFun []     . require [] TAny,
     "remainder"     --> TFun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "reverse"       --> TFun [1..1] . require [(TPair,1)] TPair,
-    "set!"          --> TFun [1..1] . require [] TVoid,
     "set-car!"      --> TFun [1..2] . require [(TPair, 1)] TVoid,
     "set-cdr!"      --> TFun [1..2] . require [(TPair, 1)] TVoid,
     "sin"           --> TFun [1..1] . require [(TInt,1)] TInt,
@@ -105,12 +106,12 @@ main_env = M.fromListWith or [
     "void?"         --> TFun [1..1] . require [] TBool,
     "write"         --> TFun [1..1] . require [(TString,1)] TAny,
     "zero?"         --> TFun [1..1] . require [] TBool
-  ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam))
+  ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam) :*: mempty)
           infix 5 -->
           require tests return blame = foldr (f blame) return tests
           f blame (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
           makeVarFun name vf blame = TVarFun (VarFun name blame vf)
-          (LPrim nam :*: fun1) `or` (LPrim _ :*: fun2) = LPrim nam :*: Tor [fun1, fun2]
+          (LPrim nam :*: fun1 :*: ef1) `or` (LPrim _ :*: fun2 :*: ef2) = LPrim nam :*: Tor [fun1, fun2] :*: ef1 `mappend` ef2
 
 
 extend :: Ident -> TypedLabel -> Env -> Env

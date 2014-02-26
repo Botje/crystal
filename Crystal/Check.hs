@@ -23,10 +23,10 @@ data Check = Cnone
            | Check [TLabel] Type (Either LitVal Ident)
              deriving (Show, Eq, Data, Typeable)
 
-type CheckedLabel = TLabel :*: Check
+type CheckedLabel = TLabel :*: Check :*: Effect
 
 _check :: Simple Lens CheckedLabel Check
-_check = _2
+_check = _2._1
 
 annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check
@@ -36,13 +36,13 @@ addChecks = reifyChecks <=< generateMobilityStats <=< eliminateRedundantChecks <
 
 introduceChecks :: Expr TypedLabel -> Step (Expr CheckedLabel)
 introduceChecks expr = return $ go expr
-  where go (Expr (l :*: t) e) =
-          let simply = Expr (l :*: Cnone) in
-          case e of 
-               Appl op args         -> Expr (l :*: checks) (Appl op' args')
+  where go (Expr (l :*: t :*: ef) expr) =
+          let simply ie = Expr (l :*: Cnone :*: ef) ie in
+          case expr of
+               Appl op args         -> Expr (l :*: checks :*: ef) (Appl op' args')
                  where labLookup l =
                          case [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ] of
-                              [] -> error ("Label lookup failed. Failing expression: " ++ show e)
+                              [] -> error ("Label lookup failed. Failing expression: " ++ show expr)
                               (x:xs) -> x
                        (op':args') = map go (op:args)
                        checks = simplifyC (typeToChecks labLookup t)
@@ -96,19 +96,21 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                          then return $ transformBi f ast
                          else return ast
   where f :: Expr CheckedLabel -> Expr CheckedLabel
-        f simple@(Expr (l :*: checks) e) =
+        f simple@(Expr (l :*: checks :*: ef) e) =
           case e of
                Appl op args         -> simple
                Lit lit              -> simple
                Ref r                -> simple
-               If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck])) e
+               If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: ef) e
                LetRec bnds bod      -> simple
                Lambda ids bod       -> simple
+               -- TODO: actually consider effects
                Begin exps           -> 
-                 Expr (l :*: combinedChecks) $ Begin $ map (set annCheck Cnone) exps
+                 Expr (l :*: combinedChecks :*: ef) $ Begin $ map (set annCheck Cnone) exps
                    where combinedChecks = Cand $ map (^. annCheck) exps
+               -- TODO: actually consider effects
                Let [(id, e)] bod    ->
-                 Expr (l :*: checksNoId) $ Let [(id, set annCheck Cnone e)] bod
+                 Expr (l :*: checksNoId :*: ef) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
                          checksNoId = simplifyC $ Cand [e_c, removeChecksOn id bod_c]
 
@@ -126,13 +128,13 @@ toDupsMap = M.fromListWith (++)
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) M.empty
   where go :: Expr CheckedLabel -> WriterT Dups (Reader TypeMap) (Expr CheckedLabel)
-        go orig@(Expr (l :*: checks) e) =
+        go orig@(Expr (l :*: checks :*: ef) e) =
           do env <- ask
              let (env', checks', dupsC) = elimRedundant env checks
              (e', dupsE) <- local (const env') $ lift $ runWriterT (f e)
              let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
              tell $ M.toList dups
-             return (Expr (l :*: simplifyC (addDuplicates dups checks')) e')
+             return (Expr (l :*: simplifyC (addDuplicates dups checks') :*: ef) e')
         f :: InExpr (Expr CheckedLabel) -> WriterT Dups (Reader TypeMap) (InExpr (Expr CheckedLabel))
         f e =
           case e of
@@ -190,12 +192,12 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
   where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
         stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) checkDepths
         checkDepths = execWriter (runReaderT (go 0 expr) M.empty)
-        numChecks = length [ () | (Expr (_ :*: check) _) <- universe expr, check /= Cnone]
+        numChecks = length [ () | (Expr (_ :*: check :*: _) _) <- universe expr, check /= Cnone]
 
         go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
-        go depth (Expr (LPrim _ :*: _) _)        = return ()
-        go depth (Expr (LVar _ :*: _) _)        = return ()
-        go depth (Expr (LSource l :*: checks) e) =
+        go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
+        go depth (Expr (LVar _ :*: _ :*: _) _)        = return ()
+        go depth (Expr (LSource l :*: checks :*: _) e) =
           withChecks $ 
             case e of 
                  Appl op args         -> mapM_ descend (op:args)
@@ -219,7 +221,7 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
 
 reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
 reifyChecks = return . go
-  where go (Expr (l :*: checks) e) = 
+  where go (Expr (l :*: checks :*: _) e) =
           let simply e = reify (simplifyC checks) (Expr l e) in
               case e of
                  Appl op args         -> simply (Appl (go op) (map go args))
