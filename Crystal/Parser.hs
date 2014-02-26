@@ -5,6 +5,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Identity
 import Data.Char
+import Data.List
 import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.String
@@ -12,6 +13,10 @@ import Text.Parsec.Prim
 import qualified Text.Parsec.Token as T
 
 import Crystal.AST
+
+ensure :: Monad m => Bool -> String -> m ()
+ensure True  _ = return ()
+ensure False s = fail s
 
 makeExpr ie = do s <- getState
                  putState (succ s)
@@ -50,7 +55,7 @@ number = do mul <- option 1 (char '-' >> return (-1))
                  Right f -> return . LitFloat . (*mul) $ f
 
 sexp =     (reserved "begin" >> exprs)
-       <|> (reserved "lambda" >> liftM2 (Lambda) (parens (many ident)) letBody >>= makeExpr)
+       <|> (reserved "lambda" >> lambda )
        <|> (reserved "let*" >> letStar)
        <|> (reserved "letrec" >> letRec)
        <|> (reserved "let" >> let')
@@ -61,6 +66,11 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "quote" >> quote >>= makeExpr . Lit)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
+
+lambda = do vars <- parens (many ident)
+            body <- letBody
+            ensure (length vars == length (nub vars)) "Multiple bindings of the same variable"
+            makeExpr $ Lambda vars body
 
 makeVoid = makeExpr $ Lit (LitVoid)
 
