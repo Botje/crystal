@@ -27,98 +27,10 @@ import Crystal.Type
 -- TODO: remove
 type T = Type
 
--- data T = TInt | TString
---        | Tor T T
---        | TIf T T T
---        | TAppl Int [T]
---        | Tvar Int
---        | TFun [Int] T
---        | TError
---        | TUnfold Int [T]
---          deriving (Data, Typeable, Eq, Ord)
-
--- data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar
---           | Tor [Type]
---           | TVar TVar
---           | TFun [TVar] Type
---           | TVarFun VarFun
---           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
---           | TAppl Type [TypedLabel]
---           | TUnfold Type [TypedLabel]
---           | TError
---           | TAny
---             deriving (Show, Eq, Data, Typeable)
-
 type Env = M.Map Int T
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
-doit [(id, fun@(TFun vars t))] = [(id, solved)]
-  where start = fun
-        solved = solve $ iterate (visit env args) start !! 10
-        env = M.singleton id fun
-        args = map TVar $ zipWith const [1..] vars
-
-solve :: T -> T
-solve fun = truncated
-  where truncated = paths $ bottoms fun
-        bottoms fun = transform f fun
-          where f (TUnfold _ _) = TError
-                f (TAppl  _ _) = TError
-                f t             = t
-        paths (TFun vars t) = if null result
-                                    then TFun vars TError
-                                    else TFun vars $ Tor result 
-          where result = nub $ go t
-                go (TFun vars t) = [TFun vars t]
-                go (Tor ts)      = concatMap go ts
-                go (TIf ls t1 t2 t)  = map (TIf ls t1 t2) $ go t
-                go TError          = []
-                go t                = [t]
-
-
-
-
-
-tag :: Head -> State HeadsMap ()
-tag id' = do present <- gets (M.lookup id)
-             when (isNothing present) $
-               modify (M.insert id Nothing)
-  where id = second canonHead id'
-
-complete :: Head -> T -> State HeadsMap ()
-complete id tree = modify $ M.insert (second canonHead id) (Just tree)
-
-canonHead :: [T] -> [T]
-canonHead vs = go vs 1
-  where go [] _           = []
-        go (TVar _:vs) id = TVar id : go vs (id+1)
-        go (v:vs) id      = v : go vs id
-
-visit :: Env -> [T] -> T -> T
-visit env args fun@(TFun vars t) =
-  runReader (TFun vars <$> go t) $ (env `M.union` M.fromList (zip vars args))
-  where go :: T -> Reader Env T
-        go TError = return TError
-        go t | t `elem` concreteTypes = return t
-        go (Tor ts) = Tor <$> mapM go ts
-        go (TVar tv) = fromJust <$> asks (M.lookup tv)
-        go (TAppl f vals) = do vals' <- mapM (go . (^. _2)) vals
-                               return $ TUnfold f $ zipWith (:*:) (repeat LSyn) vals' -- FIXME
-        go (TUnfold f vals) = do vals' <- mapM (go . (^. _2)) vals
-                                 fun' <- go f
-                                 go $ apply (zip vars vals') fun'
-        go (TIf ls t1 t2' t) = go t2' >>= \t2 ->
-          case (t1, t2) of
-            _  | t1 == t2   -> go t
-            _  | all (`elem` concreteTypes) [t1, t2] -> return TError
-            (_, TVar tv) -> do tx <- asks (M.lookup tv)
-                               case tx of
-                                    Nothing -> do t' <- local (M.insert tv t1) $ go t
-                                                  return $ TIf ls t1 t2 t'
-                                    Just ty | ty == t1  -> go t
-                                            | isTVar ty -> TIf ls t1 t2 <$> go t
-                                            | otherwise -> return TError
 
 braid :: [Int] -> S.Set T -> T
 braid vars result = if S.null result
