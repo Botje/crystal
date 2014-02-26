@@ -57,3 +57,7 @@ freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
 
 ann :: Simple Lens (Expr a) a
 ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)
+
+isRefTo :: Ident -> Expr a -> Bool
+isRefTo id (Expr _ (Ref r)) = id == r
+isRefTo id       _          = False

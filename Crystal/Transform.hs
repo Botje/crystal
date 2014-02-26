@@ -115,8 +115,8 @@ carLike :: Ident -> Bool
 carLike [] = False
 carLike n  = head n == 'c' && last n == 'r' && all (`elem` "ad") (carSteps n)
 
-isMacro :: Ident -> Bool
-isMacro r = r `elem` ["and", "or", "with-input-from-file", "with-output-to-file"] || carLike r
+isSpecialForm :: Ident -> Bool
+isSpecialForm r = r `elem` ["and", "or", "set!", "with-input-from-file", "with-output-to-file"] || carLike r
 
 updateRootLabel :: Expr Label -> State Label (Expr Label)
 updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
@@ -172,7 +172,7 @@ alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.ke
           in
             case e of
                  Lit  lit -> simply $ return $ Lit lit
-                 Ref  r | isMacro r -> simply $ return $ Ref r
+                 Ref  r | isSpecialForm r -> simply $ return $ Ref r
                         | otherwise -> simply $ Ref <$> rename r
                  Appl fun args -> simply $ Appl <$> f fun <*> mapM f args
                  Lambda ids bod ->

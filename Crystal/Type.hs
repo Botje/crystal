@@ -28,7 +28,16 @@ data TLabel = LSource Label
             | LSyn
               deriving (Show, Eq, Ord, Data, Typeable)
 
-type Effect = S.Set [Ident]
+type Effect = S.Set Ident
+
+emptyEffect :: Effect
+emptyEffect = S.empty
+
+effectSingleton :: Ident -> Effect
+effectSingleton = S.singleton
+
+effectFromList :: [Ident] -> Effect
+effectFromList = S.fromList
 
 type TypedLabel = TLabel :*: (Type :*: Effect)
 type TypeNLabel = TLabel :*: Type

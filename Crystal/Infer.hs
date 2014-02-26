@@ -13,6 +13,7 @@ import Data.Monoid
 import Control.Monad.State
 import Control.Monad.Reader
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Crystal.AST
 import Crystal.Config
@@ -128,8 +129,16 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                   (e_bod, t_bod, ef_bod) <- local (extendMany args $ map (\v -> LVar v :*: TVar v :*: mempty) a_args) (goT bod)
                                   -- TODO: attach ef_bod to the type.
                                   let t_lambda = TFun a_args t_bod
-                                  return $ Expr (l' :*: t_lambda :*: mempty) (Lambda args e_bod)
-          (Appl f args) -> do (e_f, t_f, ef_f) <- goT f
+                                  return $ Expr (l' :*: t_lambda :*: emptyEffect) (Lambda args e_bod)
+          (Appl f args)
+            | isRefTo "set!" f -> do let [Expr l_v (Ref var), exp] = args
+                                     (e_exp, t_exp, ef_exp) <- goT exp
+                                     let t_set = TVoid 
+                                     let ef_set = effectSingleton var `mappend` ef_exp
+                                     let e_f = Expr (LSource (f^.ann) :*: TAny :*: emptyEffect) (Ref "set!")
+                                     let e_var = Expr (LSource l_v :*: TAny :*: mempty) (Ref var)
+                                     return $ Expr (l' :*: t_set :*: ef_set) (Appl e_f [e_var, e_exp])
+            | otherwise -> do (e_f, t_f, ef_f) <- goT f
                               e_args <- mapM go args
                               let tvars = [1..length args]
                               let tl_args = map getTypeAndLabel e_args
