@@ -175,6 +175,14 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                           return $ Expr (l' :*: t_bod :*: ef_bod) (LetRec (zip nams e_funs) e_bod)
           _ -> error ("Don't know how to infer type for " ++ show e)
 
+-- Just ef: only those in ef, Nothing: *all* the variables.
+funEffects :: Type -> Maybe Effect
+funEffects (Tor ts)      = mconcat <$> mapM funEffects ts
+funEffects (TIf _ _ _ t) = funEffects t
+funEffects (TVarFun _)   = Just emptyEffect
+funEffects (TFun _ ef _) = Just ef
+funEffects (TVar _)      = Nothing
+funEffects _             = Just emptyEffect
 
 extendMany :: Ord k => [k] -> [v] -> M.Map k v -> M.Map k v
 extendMany keys vals env = foldr (uncurry M.insert) env (zip keys vals)
