@@ -164,7 +164,10 @@ exprs = many1 expr >>= \es ->
           _   -> makeExpr (Begin es)
   <?> "function body"
 
-decl = try (parens ((reserved "define" >> (fundecl <|> vardecl))))
+decl = do try (symbol "(" >> reserved "define")
+          ret <- fundecl <|> vardecl
+          symbol ")"
+          return ret
        <?> "declaration"
 
 letBody = do
@@ -197,7 +200,7 @@ program = do whiteSpace
 
 parseCrystal = runParser program 1000
 
-reservedNames = words "lambda if let let* letrec begin define case cond do quote"
+reservedNames = words "lambda if let let* letrec begin define case cond do quote set!"
 
 sexpDef = T.LanguageDef {
     T.commentStart = ""
