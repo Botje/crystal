@@ -108,7 +108,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Lit (LitVoid))     -> return $ Expr (l' :*: TVoid :*: mempty) (Lit (LitVoid))
           (Lit (LitList els)) | null els  -> return $ Expr (l' :*: TNull :*: mempty) (Lit (LitList els))
                               | otherwise -> return $ Expr (l' :*: TPair :*: mempty) (Lit (LitList els))
-          (Ref i) -> do lt <- asks (M.lookup i)
+          (Ref i) -> do lt <- asks (M.lookup i) -- TODO: case for when i \in \allset
                         case lt of
                           Just (l :*: t) -> return $ Expr (l :*: t) (Ref i)
                           Nothing -> error ("Unbound variable " ++ show i)
@@ -142,15 +142,16 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                               let tvars = [1..length args]
                               let tl_args = map getTypeAndLabel e_args
                               let (Expr _ (Ref fun)) = e_f
-                              case M.lookup fun main_env of
+                              case M.lookup fun main_env of -- TODO: why main_env?
                                    Just (LPrim nam :*: typ :*: _) ->
                                      -- TODO: Extract effect from function (see FunEffects)
-                                     do let applType = applyPrim (instantiatePrim nam l' t_f) tl_args
-                                        return $ Expr (l' :*: applType :*: mempty) (Appl e_f e_args)
-                                   _                             ->
-                                     -- TODO: Use \allset instead of mempty (see FunEffects)
-                                     do let applType = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
-                                        return $ Expr (l' :*: applType :*: mempty) (Appl e_f e_args)
+                                     do let t_apply = applyPrim (instantiatePrim nam l' t_f) tl_args
+                                        return $ Expr (l' :*: t_apply :*: mempty) (Appl e_f e_args)
+                                   _ ->
+                                     do let t_apply = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
+                                        -- TODO: replace Nothing with \allset
+                                        let ef_apply = maybe emptyEffect id $ funEffects t_f
+                                        return $ Expr (l' :*: t_apply :*: ef_apply) (Appl e_f e_args)
           (Begin exps) -> do exps_ <- mapM go exps 
                              let t_begin = getType $ last exps_
                              let ef_begin = mconcat $ map getEffect exps_
