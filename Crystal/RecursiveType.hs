@@ -61,17 +61,17 @@ splitThread (TIf ls t1 t2 t) = (TIf ls t1 t2 . prefix', apply)
   where (prefix', apply) = splitThread t
 splitThread t = (id, t)
 
-data Mutual = Mutual Int [(TVar, T)] deriving (Data, Typeable, Eq, Show)
+data Mutual = Mutual [(TVar, T)] deriving (Data, Typeable, Eq, Show)
 
 solveLetrec :: [TVar] -> [Type] -> [Type]
 solveLetrec vars types = map snd solved
-  where mut = Mutual (length types) $ zip vars types
-        Mutual _ solved = solveMutual mut
+  where mut = Mutual $ zip vars types
+        Mutual solved = solveMutual mut
 
 
 solveMutual :: Mutual -> Mutual
-solveMutual (Mutual n funs) = Mutual n $ map solve' funs
   where unbraidedFuns = M.fromList $ map (second (unbraid . unLambda)) funs
+solveMutual (Mutual funs) = Mutual $ map solve' funs
         solve' :: (Int, T) -> (Int, T)
         solve' (id, fun@(TFun args body)) = (id, finalType)
           where finalType = braid args $ evalState (loop $ S.singleton $ TAppl (TVar id) (map var args)) S.empty
