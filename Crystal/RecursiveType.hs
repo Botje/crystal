@@ -32,10 +32,10 @@ type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
 
-braid :: [Int] -> S.Set T -> T
-braid vars result = if S.null result
-                       then TFun vars TError
-                       else TFun vars $ Tor $ S.elems result 
+braid :: [Int] -> Effect -> S.Set T -> T
+braid vars ef result = if S.null result
+                          then TFun vars ef TError
+                          else TFun vars ef $ Tor $ S.elems result 
 
 unbraid :: T -> S.Set T
 unbraid (Tor ts) = S.unions $ map unbraid ts
@@ -44,7 +44,11 @@ unbraid (TIf ls t1 t2 t) | t1 == t2  = unbraid t
                            | otherwise = S.empty
 unbraid t = S.singleton t
 
-unLambda (TFun _ bod) = bod
+getTFunEffect :: Type -> Effect
+getTFunEffect (TFun _ ef _) = ef
+
+getTFunBody :: Type -> Type
+getTFunBody (TFun _ _ bod) = bod
 
 canon :: T -> T
 canon t = descend [] t
@@ -70,18 +74,23 @@ solveLetrec vars types = map snd solved
 
 
 solveMutual :: Mutual -> Mutual
-  where unbraidedFuns = M.fromList $ map (second (unbraid . unLambda)) funs
 solveMutual (Mutual funs) = Mutual $ map solve' funs
+  where unbraidedFuns = M.fromList $ map (second (unbraid . getTFunBody)) funs
+        funEffects    = M.fromList $ map (second getTFunEffect) funs
         solve' :: (Int, T) -> (Int, T)
-        solve' (id, fun@(TFun args body)) = (id, finalType)
-          where finalType = braid args $ evalState (loop $ S.singleton $ TAppl (TVar id) (map var args)) S.empty
+        solve' (id, fun@(TFun args _ body)) = (id, finalType)
+          where (finalPaths, finalEffect) = evalState (runWriterT $ loop $ S.singleton $ TAppl (TVar id) (map var args)) S.empty
+                finalType = braid args finalEffect finalPaths
                 var l = LVar l :*: TVar l
                 walk thread = do modify (S.insert thread)
                                  let (prefix, TAppl (TVar id) args) = splitThread thread
+                                 case M.lookup id funEffects of
+                                      Nothing -> return () -- should not happen
+                                      Just ef -> tell ef
                                  case M.lookup id unbraidedFuns of
                                       Nothing      -> return $ S.singleton thread
                                       Just threads -> return $ S.map (canon . prefix . subst (zip [1..] (map (^. _2) args))) threads
-                loop :: S.Set T -> State (S.Set T) (S.Set T)
+                loop :: S.Set T -> WriterT Effect (State (S.Set T)) (S.Set T)
                 loop s = do seen <- get
                             let (applies, concrete) = S.partition (isApply . head . typeLeafs) s
                             let (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
@@ -91,7 +100,7 @@ solveMutual (Mutual funs) = Mutual $ map solve' funs
                                        loop (expanded `S.union` concrete)
 
 apply :: [(Int, T)] -> T -> T
-apply m fun@(TFun _ body) = subst m body 
+apply m fun@(TFun _ _ body) = subst m body 
 
 subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
@@ -111,5 +120,5 @@ simplify = transform f
 typeLeafs :: T -> [T]
 typeLeafs (Tor ts) = concatMap typeLeafs ts
 typeLeafs (TIf _ _ _ t) = typeLeafs t
-typeLeafs (TFun _ t) = typeLeafs t
+typeLeafs (TFun _ _ t) = typeLeafs t
 typeLeafs t = [t]

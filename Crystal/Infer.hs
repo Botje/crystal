@@ -42,7 +42,7 @@ simplify :: Type -> Type
 simplify (Tor ts) | length ts' == 1 = head ts'
                   | otherwise       = Tor ts'
   where (ts') = nub $ concatMap (expandOr . simplify) ts
-simplify (TFun args body) = TFun args (simplify body)
+simplify (TFun args ef body) = TFun args ef (simplify body)
 simplify (TIf l t_1 t_2 t) | trivial t_1' t_2' = t'
                            | otherwise         = TIf l t_1' t_2' t'
   where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
@@ -52,8 +52,8 @@ expandOr :: Type -> [Type]
 expandOr (Tor xs) = xs
 expandOr t = [t]
 
-trivial (TFun args_1 TAny) (TFun args_2 _) = length args_1 == length args_2
-trivial (TFun _ _) (TVarFun _) = True
+trivial (TFun args_1 _ TAny) (TFun args_2 _ _) = length args_1 == length args_2
+trivial (TFun _ _ _) (TVarFun _) = True
 trivial x y | x == y = True
 trivial _ _ = False
 
@@ -127,8 +127,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                        return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
           (Lambda args bod) -> do a_args <- mapM (const freshTVar) args
                                   (e_bod, t_bod, ef_bod) <- local (extendMany args $ map (\v -> LVar v :*: TVar v :*: mempty) a_args) (goT bod)
-                                  -- TODO: attach ef_bod to the type.
-                                  let t_lambda = TFun a_args t_bod
+                                  let t_lambda = TFun a_args ef_bod t_bod
                                   return $ Expr (l' :*: t_lambda :*: emptyEffect) (Lambda args e_bod)
           (Appl f args)
             | isRefTo "set!" f -> do let [Expr l_v (Ref var), exp] = args
@@ -142,16 +141,15 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                               e_args <- mapM go args
                               let tvars = [1..length args]
                               let tl_args = map getTypeAndLabel e_args
-                              -- TODO: special case for set!
                               let (Expr _ (Ref fun)) = e_f
                               case M.lookup fun main_env of
                                    Just (LPrim nam :*: typ :*: _) ->
-                                     -- TODO: Extract effect from function
+                                     -- TODO: Extract effect from function (see FunEffects)
                                      do let applType = applyPrim (instantiatePrim nam l' t_f) tl_args
                                         return $ Expr (l' :*: applType :*: mempty) (Appl e_f e_args)
                                    _                             ->
-                                     -- TODO: Use \allset instead of mempty
-                                     do let applType = TIf (l', getLabel e_f) (TFun tvars TAny) t_f (apply t_f tl_args)
+                                     -- TODO: Use \allset instead of mempty (see FunEffects)
+                                     do let applType = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
                                         return $ Expr (l' :*: applType :*: mempty) (Appl e_f e_args)
           (Begin exps) -> do exps_ <- mapM go exps 
                              let t_begin = getType $ last exps_
@@ -162,7 +160,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                         do var <- freshTVar
                                            let (Expr l (Lambda vs _)) = fun
                                            let n = length vs
-                                           let t_fun = TFun [1..n] $ TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]]
+                                           let t_fun = TFun [1..n] emptyEffect $ TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]]
                                            let ef_fun = mempty
                                            return (var, LSource l :*: t_fun :*: ef_fun)
                                      let (vars, bnds_tl) = unzip vars_binds_tl
@@ -185,13 +183,13 @@ apply :: Type -> [TypeNLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
 apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
 apply vf@(TVarFun _) a_args = expand (TAppl vf a_args)
-apply t_f@(TFun t_args t_bod) a_args | applies t_f a_args = expand (TAppl (TFun t_args t_bod) a_args)
-                                     | otherwise = TError
+apply t_f@(TFun t_args ef t_bod) a_args | applies t_f a_args = expand (TAppl (TFun t_args ef t_bod) a_args)
+                                        | otherwise = TError
 apply (TVar v) a_args = TAppl (TVar v) a_args
 apply _ a_args = TError
 
 applies :: Type -> [TypeNLabel] -> Bool
-applies (TFun t_args t_bod) a_args = length t_args == length a_args  
+applies (TFun t_args _ t_bod) a_args = length t_args == length a_args  
 applies _ _ = False
 
 applyPrim :: Type -> [TypeNLabel] -> Type
@@ -199,7 +197,7 @@ applyPrim t_f@(Tor funs) t_args =
   case listToMaybe $ filter (flip applies t_args) funs of
        Nothing  -> apply t_f t_args
        Just fun -> apply fun t_args
-applyPrim t_f@(TFun t_args t_bod) a_args | applies t_f a_args = apply t_f a_args
+applyPrim t_f@(TFun t_args _ t_bod) a_args | applies t_f a_args = apply t_f a_args
 applyPrim t_f t_args = apply t_f t_args
 
 instantiatePrim :: Ident -> TLabel -> Type -> Type
@@ -208,7 +206,7 @@ instantiatePrim nam lab t = transform f t
         f x = x
 
 expand :: Type -> Type
-expand (TAppl (TFun t_args t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
+expand (TAppl (TFun t_args _ t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
 expand (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
 expand typ = typ
 
@@ -225,7 +223,7 @@ leaves t = t
 replace :: M.Map TVar TypeNLabel -> Type -> Type
 replace env (TVar var) | Just (l :*: t) <- M.lookup var env = t
 replace env (Tor ts) = Tor $ map (replace env) ts
-replace env (TFun args bod) = TFun args $ replace (extendMany args (map (\v -> LVar v :*: TVar v) args) env) bod
+replace env (TFun args ef bod) = TFun args ef $ replace (extendMany args (map (\v -> LVar v :*: TVar v) args) env) bod
 replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') (replace env t_1) (replace env t_2) (replace env t_3)
   where l2' = case l2 of LVar tv | Just (l :*: t) <- M.lookup tv env -> l
                          x -> x

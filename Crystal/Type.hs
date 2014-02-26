@@ -57,7 +57,7 @@ getTypeAndLabel (Expr (t :*: l :*: _) _) = t :*: l
 data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar
           | Tor [Type]
           | TVar TVar
-          | TFun [TVar] Type
+          | TFun [TVar] Effect Type
           | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypeNLabel]
