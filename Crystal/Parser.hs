@@ -14,10 +14,6 @@ import qualified Text.Parsec.Token as T
 
 import Crystal.AST
 
-ensure :: Monad m => Bool -> String -> m ()
-ensure True  _ = return ()
-ensure False s = fail s
-
 makeExpr ie = do s <- getState
                  putState (succ s)
                  return $ Expr s ie
@@ -73,9 +69,15 @@ assignment = do set <- makeExpr $ Ref "set!"
                 exp <- expr
                 makeExpr $ Appl set [var, exp]
 
+ensureNoDuplicateVars :: Monad m => [String] -> m ()
+ensureNoDuplicateVars vars =
+  case concatMap head $ filter ((>1).length) $ group $ sort vars of
+       []   -> return ()
+       dups -> fail $ "Multiple bindings of the same variable(s): " ++ show dups
+
 lambda = do vars <- parens (many ident)
             body <- letBody
-            ensure (length vars == length (nub vars)) "Multiple bindings of the same variable"
+            ensureNoDuplicateVars vars
             makeExpr $ Lambda vars body
 
 makeVoid = makeExpr $ Lit (LitVoid)
@@ -116,6 +118,7 @@ if' = do cons <- expr
 bindings = parens (many (parens (liftM2 (,) ident expr))) 
 
 simpleLet = do bnd <- bindings
+               ensureNoDuplicateVars $ map fst bnd
                body <- letBody
                makeExpr $ Let bnd body
             <?> "simple let"
