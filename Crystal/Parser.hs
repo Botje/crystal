@@ -63,9 +63,15 @@ sexp =     (reserved "begin" >> exprs)
        <|> (reserved "cond" >> cond)
        <|> (reserved "case" >> case')
        <|> (reserved "do" >> do')
+       <|> (reserved "set!" >> assignment)
        <|> (reserved "quote" >> quote >>= makeExpr . Lit)
        <|> (liftM2 Appl expr (many expr) >>= makeExpr) 
        <?> "S-expression"
+
+assignment = do set <- makeExpr $ Ref "set!"
+                var <- makeExpr . Ref =<< ident
+                exp <- expr
+                makeExpr $ Appl set [var, exp]
 
 lambda = do vars <- parens (many ident)
             body <- letBody
