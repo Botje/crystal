@@ -42,8 +42,8 @@ introduceChecks expr = return $ go expr
                Appl op args         -> Expr (l :*: checks :*: ef) (Appl op' args')
                  where labLookup l =
                          case [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ] of
-                              [] -> error ("Label lookup failed. Failing expression: " ++ show expr)
-                              (x:xs) -> x
+                              []     -> Nothing
+                              (x:xs) -> Just x
                        (op':args') = map go (op:args)
                        checks = simplifyC (typeToChecks labLookup t)
                        litOrIdent (Ref r) = Right r
@@ -56,9 +56,11 @@ introduceChecks expr = return $ go expr
                Lambda ids bod       -> simply (Lambda ids (go bod))
                Begin es             -> simply (Begin $ map go es)
 
-typeToChecks :: (TLabel -> Either LitVal Ident) -> Type -> Check
+typeToChecks :: (TLabel -> Maybe (Either LitVal Ident)) -> Type -> Check
 typeToChecks look (TIf (blame, cause) prim var rest) =
-  Cand [Check [blame] prim (look cause), typeToChecks look rest]
+  case look cause of
+       Just v  -> Cand [Check [blame] prim v, typeToChecks look rest]
+       Nothing -> typeToChecks look rest
 typeToChecks look (Tor types) =
   Cor $ map (typeToChecks look) types
 typeToChecks look _ = Cnone
