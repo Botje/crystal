@@ -53,7 +53,7 @@ main_env = M.fromListWith or [
     "char?"         --> TFun [1..1] emptyEffect . require [] TBool,
     "cons"          --> TFun [1..2] emptyEffect . require [] TPair,
     "cos"           --> TFun [1..1] emptyEffect . require [(TInt,1)] TInt,
-    "display"       --> TFun [1..1] emptyEffect . require [(TString,1)] TAny,
+    "display"       --> TFun [1..1] emptyEffect . require [] TVoid,
     "eq?"           --> TFun [1..2] emptyEffect . require [] TBool,
     "equal?"        --> TFun [1..2] emptyEffect . require [] TBool,
     "eqv?"          --> TFun [1..2] emptyEffect . require [] TBool,
