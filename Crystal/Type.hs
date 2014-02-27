@@ -33,6 +33,9 @@ type Effect = S.Set Ident
 emptyEffect :: Effect
 emptyEffect = S.empty
 
+varInEffect :: Ident -> Effect -> Bool
+varInEffect = S.member
+
 effectSingleton :: Ident -> Effect
 effectSingleton = S.singleton
 

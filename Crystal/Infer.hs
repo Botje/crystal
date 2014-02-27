@@ -93,7 +93,11 @@ generateDumb e = go e
 
 generateSmart :: Expr Label -> Expr TypedLabel
 generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
-  where goT :: Expr Label -> Infer (Expr TypedLabel, Type, Effect)
+  where allSet :: Effect
+        allSet = effectFromList [ r | Expr _ (Ref r) <- sets ]
+          where sets = [ var | Expr _ (Appl f [var, _]) <- universeBi e :: [Expr Label], isRefTo "set!" f ]
+
+        goT :: Expr Label -> Infer (Expr TypedLabel, Type, Effect)
         goT e = go e >>= \e' -> return (e', getType e', getEffect e')
 
         go :: Expr Label -> Infer (Expr TypedLabel)
@@ -108,9 +112,11 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Lit (LitVoid))     -> return $ Expr (l' :*: TVoid :*: mempty) (Lit (LitVoid))
           (Lit (LitList els)) | null els  -> return $ Expr (l' :*: TNull :*: mempty) (Lit (LitList els))
                               | otherwise -> return $ Expr (l' :*: TPair :*: mempty) (Lit (LitList els))
-          (Ref i) -> do lt <- asks (M.lookup i) -- TODO: case for when i \in \allset
+          (Ref i) -> do lt <- asks (M.lookup i)
                         case lt of
-                          Just (l :*: t) -> return $ Expr (l :*: t) (Ref i)
+                          Just (l :*: t :*: ef)
+                            | i `varInEffect` allSet -> return $ Expr (l :*: TAny :*: emptyEffect) (Ref i)
+                            | otherwise              -> return $ Expr (l :*: t    :*: ef) (Ref i)
                           Nothing -> error ("Unbound variable " ++ show i)
           (If cond cons alt) -> do (e_0, t_0, ef_0) <- goT cond
                                    (e_1, t_1, ef_1) <- goT cons
@@ -149,8 +155,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                         return $ Expr (l' :*: t_apply :*: mempty) (Appl e_f e_args)
                                    _ ->
                                      do let t_apply = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
-                                        -- TODO: replace Nothing with \allset
-                                        let ef_apply = maybe emptyEffect id $ funEffects t_f
+                                        let ef_apply = maybe allSet id $ funEffects t_f
                                         return $ Expr (l' :*: t_apply :*: ef_apply) (Appl e_f e_args)
           (Begin exps) -> do exps_ <- mapM go exps 
                              let t_begin = getType $ last exps_
