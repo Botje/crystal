@@ -161,7 +161,10 @@ alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.ke
         f :: Expr Label -> RWS (M.Map Ident Ident) [Int] (S.Set Ident) (Expr Label)
         f (Expr l e) =
           let simply ie = Expr l <$> ie
-              rename r = asks (M.lookup r) >>= return . fromJust
+              rename r = do newName <- asks (M.lookup r)
+                            case newName of
+                                 Just n -> return n
+                                 Nothing -> error $ "Unbound variable " ++ r
               withNewNames ids comp =
                 do seenSet <- get
                    let (seen, notseen) = partition (`S.member` seenSet) ids
