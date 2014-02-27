@@ -31,6 +31,9 @@ _check = _2._1
 annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check
 
+annEffect :: Simple Lens (Expr CheckedLabel) Effect
+annEffect = ann._2._2
+
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
 addChecks = reifyChecks <=< generateMobilityStats <=< eliminateRedundantChecks <=< moveChecksUp <=< introduceChecks
 
@@ -106,18 +109,20 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: ef) e
                LetRec bnds bod      -> simple
                Lambda ids bod       -> simple
-               -- TODO: actually consider effects
                Begin exps           -> 
-                 Expr (l :*: combinedChecks :*: ef) $ Begin $ map (set annCheck Cnone) exps
-                   where combinedChecks = Cand $ map (^. annCheck) exps
-               -- TODO: actually consider effects
+                 Expr (l :*: firstCheck :*: ef) $ Begin (exp' : exps')
+                   where firstCheck  = exp ^. annCheck
+                         exp'        = exp & annCheck .~ Cnone
+                         (exp:exps') = scanr1 push exps
+                         push e1 e2  = e1 & annCheck %~ \c1 -> simplifyC $ Cand [c1, removeChecksOn (e1 ^. annEffect) (e2 ^. annCheck)]
                Let [(id, e)] bod    ->
                  Expr (l :*: checksNoId :*: ef) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
-                         checksNoId = simplifyC $ Cand [e_c, removeChecksOn id bod_c]
+                         checksNoId = simplifyC $ Cand [e_c, removeChecksOn (effectSingleton id `mappend` ef) bod_c]
 
-removeChecksOn id = transform f
-  where f c@(Check _ _ (Right id')) | id == id' = Cnone
+removeChecksOn :: Effect -> Check -> Check
+removeChecksOn ef = transform f
+  where f c@(Check _ _ (Right id)) | id `varInEffect` ef = Cnone
         f c = c
 
 type TypeMap = M.Map Ident Type
