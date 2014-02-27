@@ -1,0 +1,6 @@
+(define (foo x)
+	(set! x (+ x 1))
+	(set! x "hallo")
+	(string-append "Hello, " x))
+
+(foo 5)
