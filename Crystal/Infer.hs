@@ -38,8 +38,6 @@ maybeDumpTypes expr =
 simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
 simplifyLabels = return . transformBi simplify
 
-type Infer a = ReaderT Env (State TVar) a
-
 dumpTypes :: Expr TypedLabel -> [(Ident, Type)]
 dumpTypes (Expr _ (Let bnds bod))    = over (mapped._2) getType bnds ++ dumpTypes bod
 dumpTypes (Expr _ (LetRec bnds bod)) = over (mapped._2) getType bnds ++ dumpTypes bod
@@ -71,6 +69,8 @@ generateDumb e = go e
                  LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
                  Lambda ids bod       -> simply (Lambda ids (go bod))
                  Begin es             -> simply (Begin $ map go es)
+
+type Infer a = ReaderT Env (State TVar) a
 
 generateSmart :: Expr Label -> Expr TypedLabel
 generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ start)
