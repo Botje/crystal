@@ -1,11 +1,18 @@
+{-#LANGUAGE FlexibleContexts #-}
 {-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
 module Crystal.JSON where
 
 import Data.Aeson
+import Data.Aeson.Encode
 import Data.Aeson.Types
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Text.Lazy as T
+import Data.Text.Lazy.Builder
 
 import Crystal.AST
+
+encode :: ToJSON (Expr a) => Expr a -> T.Text
+encode = toLazyText . fromValue . toJSON
 
 instance ToJSON a => ToJSON (Expr a) where
   toJSON (Expr a ie) = Object (HM.insert "ann" (toJSON a) obj)

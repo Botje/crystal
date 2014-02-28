@@ -1,17 +1,22 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
+{-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
 module Crystal.Check where
 
-import Control.Lens hiding (transform, universe)
+import Control.Lens hiding (transform, universe, (.=))
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Aeson hiding (encode)
 import Data.List
 import Debug.Trace
 import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Data.Text.Lazy as T
 import Data.Generics
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.JSON
 import Crystal.Config
 import Crystal.Misc
 import Crystal.Tuple
@@ -35,7 +40,20 @@ annEffect :: Simple Lens (Expr CheckedLabel) Effect
 annEffect = ann._2._2
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
-addChecks = reifyChecks <=< generateMobilityStats <=< eliminateRedundantChecks <=< moveChecksUp <=< introduceChecks
+addChecks = reifyChecks <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< {- eliminateRedundantChecks <=< -} maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
+
+maybeDumpTree :: ToJSON a => String -> Expr a -> Step (Expr a)
+maybeDumpTree tag expr =
+  do dump <- asks (^.cfgDumpTree)
+     when dump $ do
+       report tag $ encode expr
+     return expr
+
+instance ToJSON TLabel where
+  toJSON l = toJSON $ show l
+
+instance ToJSON CheckedLabel where
+  toJSON (l :*: c :*: ef) = object [ "label" .= show l, "check" .= show c, "effect" .= toJSON (S.toList ef) ]
 
 introduceChecks :: Expr TypedLabel -> Step (Expr CheckedLabel)
 introduceChecks expr = return $ go expr
@@ -193,8 +211,8 @@ elimRedundant env checks = (env', simplifyC checks', duplicates)
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 when generateStats $ do
-                                  report "Mobility stats" (format stats)
-                                  report "Number of checks" (show numChecks)
+                                  report "Mobility stats" (T.pack $ format stats)
+                                  report "Number of checks" (T.pack $ show numChecks)
                                 return expr
   where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
         stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) checkDepths

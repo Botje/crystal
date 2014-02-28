@@ -1,14 +1,15 @@
+{-#LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Writer
+import Data.Text.Format
 import System.Environment
 import System.Exit
 import System.IO
 import System.Console.CmdArgs.Implicit
-import Text.Printf
 
 import Crystal.AST
 import Crystal.Check
@@ -37,7 +38,7 @@ process config fname cts =
                        when (not (null results)) $ do
                          putStr "\n--- STATS ---\n"
                          forM_ results $ \(header,cts) ->
-                           printf "<%s>\n%s%s</%s>\n" header cts (if last cts == '\n' then "" else "\n") header
+                           Data.Text.Format.print "<{}>\n{}\n</{}>\n" (header, cts, header)
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of

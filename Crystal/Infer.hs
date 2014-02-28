@@ -1,9 +1,11 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
+{-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
 module Crystal.Infer where
 
 import Control.Applicative
-import Control.Lens hiding (transform)
+import Control.Lens hiding (transform, (.=))
 import Control.Monad
+import Data.Aeson hiding (encode)
 import Data.Function
 import Data.Generics
 import Data.Generics.Biplate
@@ -14,10 +16,12 @@ import Control.Monad.State
 import Control.Monad.Reader
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text.Lazy as T
 
 import Crystal.AST
 import Crystal.Config
 import Crystal.Env
+import Crystal.JSON
 import Crystal.Misc
 import Crystal.RecursiveType
 import Crystal.Seq
@@ -25,14 +29,24 @@ import Crystal.Tuple
 import Crystal.Type
 
 infer :: Expr Label -> Step (Expr TypedLabel)
-infer = maybeDumpTypes <=< simplifyLabels <=< generate
+infer = maybeDumpTree <=< maybeDumpTypes <=< simplifyLabels <=< generate
+
+maybeDumpTree :: Expr TypedLabel -> Step (Expr TypedLabel)
+maybeDumpTree expr =
+  do dump <- asks (^.cfgDumpTree)
+     when dump $ do
+       report "check-inference" $ encode expr
+     return expr
+
+instance ToJSON TypedLabel where
+  toJSON (l :*: t :*: ef) = object [ "label" .= show l, "type" .= show t, "effect" .= toJSON (S.toList ef) ]
 
 maybeDumpTypes :: Expr TypedLabel -> Step (Expr TypedLabel)
 maybeDumpTypes expr =
   do dump <- asks (^.cfgDumpTypes)
      when dump $ do
        let types = [ show k ++ " ==> " ++ show v | (k,v) <- sort $ dumpTypes expr ]
-       report "Types dump" $ unlines types
+       report "Types dump" $ T.pack $ unlines types
      return expr
 
 simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)

@@ -6,7 +6,7 @@ category:            Development
 license:             BSD3
 author:              Dries Harnie
 maintainer:          dharnie@vub.ac.be
-build-Depends:       base,parsec>3,mtl,uniplate,pretty,bytestring,containers,split,syb,lens,cmdargs,QuickCheck,aeson,unordered-containers
+build-Depends:       base,parsec>3,mtl,uniplate,pretty,bytestring,containers,split,syb,lens,cmdargs,QuickCheck,aeson,unordered-containers,text-format,text
 build-type:          Simple
 
 executable:          crystal
