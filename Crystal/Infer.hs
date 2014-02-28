@@ -78,6 +78,11 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
         allSet = effectFromList [ r | Expr _ (Ref r) <- sets ]
           where sets = [ var | Expr _ (Appl f [var, _]) <- universeBi e :: [Expr Label], isRefTo "set!" f ]
 
+        effectToLabels :: Effect -> Infer (S.Set TLabel)
+        effectToLabels ef = do env <- ask
+                               let typedlabels = catMaybes $ map (flip M.lookup env) $ S.toList ef
+                               return $ S.fromList $ map (^._1) typedlabels
+
         goT :: Expr Label -> Infer (Expr TypedLabel, Type, Effect)
         goT e = go e >>= \e' -> return (e', getType e', getEffect e')
 
@@ -105,12 +110,14 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                    let t_if = Tor [t_1, t_2]
                                    let ef_if = ef_1 `mappend` ef_2
                                    return $ Expr (l' :*: t_if :*: ef_if) (If e_0 e_1 e_2)
+          -- TODO: Type rule for this is wrong in thesis!
           (Let [(nam, exp)] bod) -> do (e_x, t_1, ef_x) <- goT exp
                                        let t_l = leaves t_1
                                        let bod_tl = getLabel e_x :*: t_l :*: mempty
                                        (e_bod, t_bod, ef_bod) <- local (extend nam bod_tl) (goT bod)
-                                       let t_let = chain t_1 t_bod
-                                       let ef_let = ef_x `mappend` ef_bod
+                                       forbiddenLabels <- local (extend nam bod_tl) $ effectToLabels ef_x
+                                       let t_let = chainWithEffect t_1 forbiddenLabels t_bod
+                                       let ef_let = ef_x `mappend` (S.delete nam ef_bod)
                                        return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
           (Lambda args bod) -> do a_args <- mapM (const freshTVar) args
                                   (e_bod, t_bod, ef_bod) <- local (extendMany args $ map (\v -> LVar v :*: TVar v :*: mempty) a_args) (goT bod)
@@ -138,8 +145,10 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                      do let t_apply = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
                                         let ef_apply = maybe allSet id $ funEffects t_f
                                         return $ Expr (l' :*: t_apply :*: ef_apply) (Appl e_f e_args)
+          -- Chain types of expressions together, removing checks on variables that are set beforehand
           (Begin exps) -> do exps_ <- mapM go exps 
-                             let t_begin = getType $ last exps_
+                             typesEffects <- mapM (\e -> liftM2 (,) (return $ getType e) (effectToLabels $ getEffect e)) exps_
+                             let t_begin = foldr (\(t1, labs) t -> chainWithEffect t1 labs t) (fst $ last typesEffects) (init typesEffects)
                              let ef_begin = mconcat $ map getEffect exps_
                              return $ Expr (l' :*: t_begin :*: ef_begin) (Begin exps_)
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
@@ -205,10 +214,20 @@ expand (TAppl (TFun t_args _ t_bod) a_args) = replace (M.fromList $ zip t_args a
 expand (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
 expand typ = typ
 
+chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
+chainWithEffect t forbidden t_c = go t
+  where t_c' = transform strip t_c
+        go (Tor ts) = Tor $ map go ts
+        go (TIf (blame, cause) t_t t_1 t) 
+          = TIf (blame, cause) t_t t_1 $ go t
+        go t = t_c'
+        strip tif@(TIf (blame, cause) t_t t_1 t)
+              | cause `S.member` forbidden = t
+              | otherwise                  = tif
+        strip t = t
+
 chain :: Type -> Type -> Type
-chain (Tor ts) t_c = Tor $ map (flip chain t_c) ts
-chain (TIf l t_t t_1 t) t_c = TIf l t_t t_1 $ chain t t_c
-chain t t_c = t_c
+chain t1 t2 = chainWithEffect t1 S.empty t2
 
 leaves :: Type -> Type
 leaves (Tor ts) = Tor $ map leaves ts
