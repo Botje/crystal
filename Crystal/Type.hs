@@ -92,3 +92,23 @@ instance Show VarFun where
 
 concreteTypes :: [Type]
 concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TNull, TChar]
+
+simplify :: Type -> Type
+simplify (Tor ts) | length ts' == 1 = head ts'
+                  | otherwise       = Tor ts'
+  where ts' = nub $ concatMap (expandOr . simplify) ts
+simplify (TFun args ef body) = TFun args ef (simplify body)
+simplify tif@(TIf l t_1 t_2 t) | trivialIf tif = t
+                               | otherwise     = TIf l t_1' t_2' t
+  where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
+simplify t = t
+
+expandOr :: Type -> [Type]
+expandOr (Tor xs) = xs
+expandOr t = [t]
+
+trivialIf :: Type -> Bool
+trivialIf (TIf _ (TFun args_1 _ TAny) (TFun args_2 _ _) _) = length args_1 == length args_2
+trivialIf (TIf _ (TFun _ _ _) (TVarFun _) _) = True
+trivialIf (TIf _ x y _) | x == y = True
+trivialIf _ = False

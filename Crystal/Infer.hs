@@ -38,25 +38,6 @@ maybeDumpTypes expr =
 simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
 simplifyLabels = return . transformBi simplify
 
-simplify :: Type -> Type
-simplify (Tor ts) | length ts' == 1 = head ts'
-                  | otherwise       = Tor ts'
-  where (ts') = nub $ concatMap (expandOr . simplify) ts
-simplify (TFun args ef body) = TFun args ef (simplify body)
-simplify (TIf l t_1 t_2 t) | trivial t_1' t_2' = t'
-                           | otherwise         = TIf l t_1' t_2' t'
-  where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
-simplify t = t
-
-expandOr :: Type -> [Type]
-expandOr (Tor xs) = xs
-expandOr t = [t]
-
-trivial (TFun args_1 _ TAny) (TFun args_2 _ _) = length args_1 == length args_2
-trivial (TFun _ _ _) (TVarFun _) = True
-trivial x y | x == y = True
-trivial _ _ = False
-
 type Infer a = ReaderT Env (State TVar) a
 
 dumpTypes :: Expr TypedLabel -> [(Ident, Type)]
