@@ -8,6 +8,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Aeson hiding (encode)
 import Data.List
+import Data.Maybe
 import Debug.Trace
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -143,71 +144,22 @@ removeChecksOn ef = transform f
   where f c@(Check _ _ (Right id)) | id `varInEffect` ef = Cnone
         f c = c
 
-type TypeMap = M.Map Ident Type
-type Dups    = [(Ident, [TLabel])]
-type DupsMap = M.Map Ident [TLabel]
-
-toDupsMap :: Dups -> DupsMap
-toDupsMap = M.fromListWith (++)
+type ChecksMap = M.Map TLabel (Check :*: Effect)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
-eliminateRedundantChecks expr = return $ fst $ runReader (runWriterT $ go expr) M.empty
-  where go :: Expr CheckedLabel -> WriterT Dups (Reader TypeMap) (Expr CheckedLabel)
-        go orig@(Expr (l :*: checks :*: ef) e) =
-          do env <- ask
-             let (env', checks', dupsC) = elimRedundant env checks
-             (e', dupsE) <- local (const env') $ lift $ runWriterT (f e)
-             let dups = M.unionWith (++) (toDupsMap dupsC) (toDupsMap dupsE)
-             tell $ M.toList dups
-             return (Expr (l :*: simplifyC (addDuplicates dups checks') :*: ef) e')
-        f :: InExpr (Expr CheckedLabel) -> WriterT Dups (Reader TypeMap) (InExpr (Expr CheckedLabel))
-        f e =
-          case e of
-             Appl op args         -> Appl op `liftM` mapM go args
-             Lit lit              -> return e
-             Ref r                -> return e
-             If cond cons alt     -> liftM2 (If cond) (go cons) (go alt)
-             Let [(id, e)] bod    -> do e_ <- go e
-                                        bod_ <- local (M.insert id TAny) $ go bod
-                                        return $ Let [(id, e_)] bod_
-             LetRec bnds bod ->
-               local (M.union $ M.fromList (bnds & (mapped._2) .~ TAny)) $ do
-                 bnds' <- mapM (\(nam, exp) -> go exp >>= \l -> return (nam, l)) bnds
-                 bod'  <- go bod
-                 return $ LetRec bnds' bod'
-             Lambda ids bod       -> Lambda ids `liftM` local (M.union (defaultEnv ids)) (go bod)
-             Begin exps           -> Begin `liftM` mapM go exps
-        defaultEnv ids = M.fromList [ (x, TAny) | x <- ids ]
+eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
+  where startChecks :: ChecksMap
+        startChecks = M.fromList [ (l, c :*: ef) | Expr (l :*: c :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
+        finalChecks = execState redundantLoop startChecks
+        updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
+        updateChecks checks expr = transformBi u expr
+          where u (Expr (l :*: _) ie) = Expr (l :*: fromJust (M.lookup l checks)) ie
 
-addDuplicates :: DupsMap -> Check -> Check
-addDuplicates dups c | M.null dups = c
-addDuplicates dups c = transform f c
-  where f c@(Check lab typ (Right i)) =
-          case M.lookup i dups of
-               Nothing -> c
-               Just lab' -> Check (lab++lab') typ (Right i)
-        f c = c
-
-elimRedundant :: TypeMap -> Check -> (TypeMap, Check, Dups)
-elimRedundant env checks = (env', simplifyC checks', duplicates)
-  where ((checks', env'), duplicates) = runWriter (runStateT (go checks) env)
-        go :: Check -> StateT TypeMap (Writer Dups) Check
-        go Cnone     = return Cnone
-        go (Cand cs) = Cand `liftM` mapM go cs
-        go (Cor cs)  = do env <- get
-                          cs' <- lift $ mapM (\c -> evalStateT (go c) env) cs
-                          return $ Cor cs'
-        go c@(Check lab typ target) =
-          do env <- get
-             case target of
-                  Left lit -> return c
-                  Right id ->
-                    case M.lookup id env  of
-                         Nothing   -> trace ("ignoring unbound identifier " ++ show id) $ return c -- error ("Unbound identifier " ++ id ++ " in check " ++ show c)
-                         Just TAny -> modify (M.insert id typ) >> return c
-                         Just typ' | typ == typ' -> tell [(id, lab)] >> return Cnone
-                                   | otherwise   -> return c
-
+        redundantLoop :: State ChecksMap ()
+        redundantLoop = runReaderT (walk expr) M.empty -- apply optimization -- loop
+        walk :: Expr CheckedLabel -> ReaderT (M.Map Ident Type) (State ChecksMap) ()
+        walk expr = return ()
+        
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 when generateStats $ do
