@@ -145,6 +145,11 @@ removeChecksOn ef = transform f
         f c = c
 
 type ChecksMap = M.Map TLabel (Check :*: Effect)
+type CachedTypes = M.Map Ident Type
+
+lowerBound :: Type -> Type -> Type
+lowerBound t1 t2 | t1 == t2 = t1
+lowerBound _  _             = TAny
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
@@ -156,10 +161,52 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
           where u (Expr (l :*: _) ie) = Expr (l :*: fromJust (M.lookup l checks)) ie
 
         redundantLoop :: State ChecksMap ()
-        redundantLoop = runReaderT (walk expr) M.empty -- apply optimization -- loop
-        walk :: Expr CheckedLabel -> ReaderT (M.Map Ident Type) (State ChecksMap) ()
-        walk expr = return ()
-        
+        redundantLoop = evalStateT (walk expr) M.empty -- apply optimization
+
+        stripWithCache :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) Check
+        stripWithCache l cs = do check <- transformBiM strip cs
+                                 lift $ updateChecksMap l $ \_ -> check
+                                 return check
+          where strip c@(Check ls typ (Right id)) =
+                  do res <- gets $ M.lookup id
+                     case res of
+                          -- todo (typ,l)
+                          Just typ' | typ == typ' -> do lift $ updateChecksMap l $ \check -> Cand [check, c]
+                                                        return Cnone
+                          _                       -> return cs
+                strip x = return x
+                updateChecksMap l f = do map <- get
+                                         let Just (c :*: ef) = M.lookup l map
+                                         put $ M.insert l (f c :*: ef) map
+        updateCachedTypes :: Check -> StateT CachedTypes (State ChecksMap) ()
+        updateCachedTypes Cnone = return ()
+        updateCachedTypes (Cand cs) = mapM_ updateCachedTypes cs
+        updateCachedTypes (Cor cs) = sequence_ [ modify (M.insert id TAny) | c <- cs, Check _ typ (Right id) <- universe c ]
+        updateCachedTypes (Check ls typ (Left lv)) = return ()
+        updateCachedTypes (Check ls typ (Right id)) = modify (M.insert id typ)
+
+        -- With every type test τ? x, fix type of x to τ until next assignment.
+        walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
+        walk (Expr (l :*: c :*: ef) ie) =
+          do c' <- stripWithCache l c
+             updateCachedTypes c'
+             case ie of
+               (Lit    _)             -> return ()
+               (Ref    r)             -> return ()
+               -- Function application can affect variables. Reset their type.
+               (Appl   f args)        -> do mapM_ walk (f:args)
+                                            forM_ (effectToList ef) $ \v -> modify (M.insert v TAny)
+               (If     cond cons alt) -> do cached <- get
+                                            m1 <- lift $ execStateT (walk cons) cached
+                                            m2 <- lift $ execStateT (walk alt) cached
+                                            put $ M.unionWith lowerBound m1 m2
+               (Let    [(id, e)] bod) -> do walk e
+                                            modify (M.insert id TAny)
+                                            walk bod
+               (LetRec bnds bod)      -> walk bod -- TODO: walk bnds with x: TAny for all mutable variables x
+               (Lambda ids bod)       -> walk bod -- TODO: walk bod with x: TAny for all mutable variables x
+               (Begin  exps)          -> mapM_ walk exps
+
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 when generateStats $ do
