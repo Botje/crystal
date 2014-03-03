@@ -42,6 +42,9 @@ effectSingleton = S.singleton
 effectFromList :: [Ident] -> Effect
 effectFromList = S.fromList
 
+effectToList :: Effect -> [Ident]
+effectToList = S.toList
+
 type TypedLabel = TLabel :*: (Type :*: Effect)
 type TypeNLabel = TLabel :*: Type
 
@@ -78,7 +81,7 @@ isTVar (TVar _) = True
 isTVar ________ = False
 
 isApply (TAppl _ _) = True
-isApply ____________ = False
+isApply ___________ = False
 
 
 instance Eq VarFun where
