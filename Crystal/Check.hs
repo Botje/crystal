@@ -2,7 +2,8 @@
 {-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
 module Crystal.Check where
 
-import Control.Lens hiding (transform, universe, (.=))
+import Control.Applicative
+import Control.Lens hiding (transform, transformM, universe, (.=))
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -41,7 +42,7 @@ annEffect :: Simple Lens (Expr CheckedLabel) Effect
 annEffect = ann._2._2
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
-addChecks = reifyChecks <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< {- eliminateRedundantChecks <=< -} maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
+addChecks = reifyChecks <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
 
 maybeDumpTree :: ToJSON a => String -> Expr a -> Step (Expr a)
 maybeDumpTree tag expr =
@@ -144,12 +145,26 @@ removeChecksOn ef = transform f
   where f c@(Check _ _ (Right id)) | id `varInEffect` ef = Cnone
         f c = c
 
-type ChecksMap = M.Map TLabel (Check :*: Effect)
-type CachedTypes = M.Map Ident Type
+getAndDelete :: (MonadState (M.Map k v) m, Ord k) => k -> m (Maybe v)
+getAndDelete k = do m_v <- gets $ M.lookup k
+                    modify $ M.delete k
+                    return m_v
 
-lowerBound :: Type -> Type -> Type
-lowerBound t1 t2 | t1 == t2 = t1
-lowerBound _  _             = TAny
+mergeSameChecks :: Check -> Check
+mergeSameChecks check = evalState (stripMerged check) grouped
+  where grouped = M.fromListWith S.union [ ((typ, tgt), S.fromList labs) | Check labs typ tgt <- universe check ]
+        stripMerged Cnone = return Cnone
+        stripMerged (Cand cs) = Cand <$> mapM stripMerged cs
+        stripMerged (Cor cs)  = Cor <$> mapM stripMerged cs
+        stripMerged (Check _ typ tgt) = do m_labs <- getAndDelete (typ, tgt)
+                                           case m_labs of
+                                                Nothing -> return Cnone
+                                                Just labs -> return $ Check (S.toAscList labs) typ tgt
+
+
+
+type ChecksMap = M.Map TLabel (Check :*: Effect)
+type CachedTypes = M.Map Ident (TLabel :*: Type)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
@@ -159,53 +174,75 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
         updateChecks checks expr = transformBi u expr
           where u (Expr (l :*: _) ie) = Expr (l :*: fromJust (M.lookup l checks)) ie
+        
+        allSet :: [Ident]
+        allSet = [ r | Expr _ (Ref r) <- sets ]
+          where sets = [ var | Expr _ (Appl f [var, _]) <- universeBi expr :: [Expr CheckedLabel], isRefTo "set!" f ]
 
         redundantLoop :: State ChecksMap ()
-        redundantLoop = evalStateT (walk expr) M.empty -- apply optimization
+        redundantLoop = do evalStateT (walk expr) M.empty
+                           modify $ M.map (_1 %~ (simplifyC . mergeSameChecks . simplifyC))
 
         stripWithCache :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) Check
-        stripWithCache l cs = do check <- transformBiM strip cs
+        stripWithCache l cs = do check <- transformM strip cs
                                  lift $ updateChecksMap l $ \_ -> check
                                  return check
           where strip c@(Check ls typ (Right id)) =
                   do res <- gets $ M.lookup id
                      case res of
-                          -- todo (typ,l)
-                          Just typ' | typ == typ' -> do lift $ updateChecksMap l $ \check -> Cand [check, c]
-                                                        return Cnone
-                          _                       -> return cs
+                          Just (l_top :*: typ_top)
+                            | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> Cand [check, c]
+                                                   return Cnone
+                          _                  -> return cs
                 strip x = return x
                 updateChecksMap l f = do map <- get
                                          let Just (c :*: ef) = M.lookup l map
                                          put $ M.insert l (f c :*: ef) map
-        updateCachedTypes :: Check -> StateT CachedTypes (State ChecksMap) ()
-        updateCachedTypes Cnone = return ()
-        updateCachedTypes (Cand cs) = mapM_ updateCachedTypes cs
-        updateCachedTypes (Cor cs) = sequence_ [ modify (M.insert id TAny) | c <- cs, Check _ typ (Right id) <- universe c ]
-        updateCachedTypes (Check ls typ (Left lv)) = return ()
-        updateCachedTypes (Check ls typ (Right id)) = modify (M.insert id typ)
+        updateCachedTypes :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) ()
+        updateCachedTypes l check = update check
+          where update Cnone = return ()
+                update (Cand cs) = mapM_ update cs
+                update (Cor cs) = sequence_ [ modify (M.insert id (unknownLabel :*: TAny)) | c <- cs, Check _ typ (Right id) <- universe c ]
+                update (Check ls typ (Left lv)) = return ()
+                update (Check ls typ (Right id)) = modify (M.insert id (l :*: typ))
+
+        unknownLabel = error $ "Trying to add check to unknown label."
+
+        lowerBound :: (TLabel :*: Type) -> (TLabel :*: Type) -> (TLabel :*: Type)
+        lowerBound t1 t2 | t1 == t2 = t1
+        lowerBound _  _  = unknownLabel :*: TAny
 
         -- With every type test τ? x, fix type of x to τ until next assignment.
         walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
         walk (Expr (l :*: c :*: ef) ie) =
           do c' <- stripWithCache l c
-             updateCachedTypes c'
+             updateCachedTypes l c'
              case ie of
                (Lit    _)             -> return ()
                (Ref    r)             -> return ()
                -- Function application can affect variables. Reset their type.
                (Appl   f args)        -> do mapM_ walk (f:args)
-                                            forM_ (effectToList ef) $ \v -> modify (M.insert v TAny)
+                                            forM_ (effectToList ef) $ \id -> modify (M.insert id (unknownLabel :*: TAny))
                (If     cond cons alt) -> do cached <- get
                                             m1 <- lift $ execStateT (walk cons) cached
                                             m2 <- lift $ execStateT (walk alt) cached
                                             put $ M.unionWith lowerBound m1 m2
                (Let    [(id, e)] bod) -> do walk e
-                                            modify (M.insert id TAny)
+                                            modify $ M.insert id (l :*: TAny)
                                             walk bod
-               (LetRec bnds bod)      -> walk bod -- TODO: walk bnds with x: TAny for all mutable variables x
-               (Lambda ids bod)       -> walk bod -- TODO: walk bod with x: TAny for all mutable variables x
+               (LetRec bnds bod)      -> do mapM_ walk $ map snd bnds
+                                            forM_ (map fst bnds) $ \id -> modify $ M.insert id (l :*: TAny)
+                                            walk bod
+               (Lambda ids bod)       -> do cached <- get
+                                            let act = do forM_ allSet $ \id -> modify $ M.insert id (unknownLabel :*: TAny)
+                                                         forM_ ids $ \id -> modify $ M.insert id (l :*: TAny)
+                                                         walk bod -- TODO: walk bod with x: TAny for all mutable variables x
+                                            lift $ evalStateT act cached
                (Begin  exps)          -> mapM_ walk exps
+
+
+
+
 
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
