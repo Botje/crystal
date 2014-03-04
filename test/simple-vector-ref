@@ -1,0 +1,7 @@
+(define (mod areal)
+	(let ((ar areal))
+		(let ((i 0))
+			(let ((j 0))
+				(vector-ref ar 5)))))
+
+(mod (vector 1 2 3))
