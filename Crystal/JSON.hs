@@ -12,7 +12,7 @@ import Data.Text.Lazy.Builder
 import Crystal.AST
 
 encode :: ToJSON (Expr a) => Expr a -> T.Text
-encode = toLazyText . fromValue . toJSON
+encode = toLazyText . encodeToTextBuilder . toJSON
 
 instance ToJSON a => ToJSON (Expr a) where
   toJSON (Expr a ie) = Object (HM.insert "ann" (toJSON a) obj)
