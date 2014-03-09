@@ -38,9 +38,9 @@ instance ToJSON a => ToJSON (InExpr (Expr a)) where
   toJSON (Lit lit)            = toJSON lit
   toJSON (Ref r)              = obj "Identifier" [ "name" .= r ]
   toJSON (If cond cons alt)   = obj "ConditionalExpression" [ "test" .= toJSON cond, "consequent" .= toJSON cons, "alternative" .= toJSON alt ]
-  toJSON (Let [(id, e)] bod)  = obj "LetExpression" [ "head" .= toJSON [ object [ "id" .= id, "init" .= toJSON e ] ], "body" .= toJSON bod ]
-  toJSON (LetRec bnds bod)    = obj "LetExpression" [ "head" .= toJSON [ map f bnds ], "body" .= toJSON bod ]
+  toJSON (Let [(id, e)] bod)  = obj "LetExpression" [ "kw" .= str "let", "head" .= toJSON [ object [ "id" .= id, "init" .= toJSON e ] ], "body" .= toJSON bod ]
+  toJSON (LetRec bnds bod)    = obj "LetExpression" [ "kw" .= str "letrec", "head" .= toJSON (map f bnds), "body" .= toJSON bod ]
     where f (id, e) = object [ "id" .= id, "init" .= toJSON e ]
-  toJSON (Lambda ids bod)     = obj "FunctionExpression" [ "params" .= toJSON [ ids ], "body" .= toJSON bod ]
+  toJSON (Lambda ids bod)     = obj "FunctionExpression" [ "params" .= toJSON ids, "body" .= toJSON bod ]
   toJSON (Begin es)           = obj "SequenceExpression" [ "expressions" .= toJSON (map toJSON es) ]
-  toJSON (Appl f args)        = obj "CallExpression" [ "callee" .= toJSON f, "arguments" .= toJSON [ map toJSON args ] ]
+  toJSON (Appl f args)        = obj "CallExpression" [ "callee" .= toJSON f, "arguments" .= toJSON (map toJSON args) ]
