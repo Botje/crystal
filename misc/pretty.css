@@ -1,3 +1,8 @@
 #pretty-output div {
 	display: inline;
 }
+
+span.label {
+	border: 1px solid green;
+	font-size: 50%;
+}

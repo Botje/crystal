@@ -27,6 +27,26 @@ $(function() {
 		out.append(this.text);
 	}
 
+	function Ann(a) {
+		this.a = a;
+	}
+
+	Ann.prototype = new Text();
+	Ann.prototype.constructor = Ann;
+	Ann.prototype.render = function(out) {
+		var div = $("<span class='label' />");
+		var lab = this.a.label;
+		lab = lab.replace(/^LSource /,"");
+		lab = lab.replace(/"/,"");
+		lab = lab.replace(/"/,"");
+		lab = lab.replace(/^LPrim /,"");
+		this.a.label = lab;
+		div.text(lab);
+		div.attr('title', JSON.stringify(this.a, null, " "));
+		div.tooltip();
+		out.append(div);
+	}
+
 	function Cons(l, r) {
 		this.l = l;
 		this.r = r;
@@ -97,8 +117,12 @@ $(function() {
 		return cons(text("("), d, text(")"));
 	}
 
+	function ann(a) {
+		return new Ann(a);
+	}
+
 	function pretty(tree) {
-		return prettyPrint(tree);
+		return cons(ann(tree.ann), prettyPrint(tree));
 	}
 
 	function prettyPrint(tree) {
