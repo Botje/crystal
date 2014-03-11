@@ -94,6 +94,12 @@ expandMacros expr@(Expr start _) = return $ evalState (transformBiM f expr >>= u
                ("and", _ ) -> foldM (g (flip . If)) (last args) (reverse $ init args)
                ("or",  []) -> return $ Expr l (Lit (LitBool False))
                ("or",  _ ) -> foldM (g If) (last args) (reverse $ init args)
+               ("unless", (cond : exps)) -> do begin <- makeExpr $ Begin exps
+                                               void  <- makeExpr $ Lit LitVoid
+                                               makeExpr $ If cond void begin
+               ("when", (cond : exps)) -> do begin <- makeExpr $ Begin exps
+                                             void  <- makeExpr $ Lit LitVoid
+                                             makeExpr $ If cond begin void
                ("with-input-from-file", [_, thunk]) ->
                  return $ Expr l (Appl thunk [])
                ("with-output-to-file", [_, thunk]) ->
@@ -116,7 +122,7 @@ carLike [] = False
 carLike n  = head n == 'c' && last n == 'r' && all (`elem` "ad") (carSteps n)
 
 isSpecialForm :: Ident -> Bool
-isSpecialForm r = r `elem` ["and", "or", "set!", "with-input-from-file", "with-output-to-file"] || carLike r
+isSpecialForm r = r `elem` ["and", "or", "set!", "when", "with-input-from-file", "with-output-to-file", "unless"] || carLike r
 
 updateRootLabel :: Expr Label -> State Label (Expr Label)
 updateRootLabel (Expr _ e) = nextSeq >>= return . flip Expr e 
