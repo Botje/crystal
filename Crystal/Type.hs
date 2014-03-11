@@ -60,7 +60,7 @@ getEffect (Expr (_ :*: _ :*: ef) _) = ef
 getTypeAndLabel :: Expr TypedLabel -> TypeNLabel
 getTypeAndLabel (Expr (t :*: l :*: _) _) = t :*: l
 
-data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar
+data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TNull | TChar | TPort
           | Tor [Type]
           | TVar TVar
           | TFun [TVar] Effect Type
@@ -94,7 +94,7 @@ instance Show VarFun where
   showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s
 
 concreteTypes :: [Type]
-concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TNull, TChar]
+concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TNull, TChar, TPort]
 
 simplify :: Type -> Type
 simplify (Tor ts) | length ts' == 1 = head ts'

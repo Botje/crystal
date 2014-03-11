@@ -310,6 +310,7 @@ reify checks e = appl "check" [reify' checks, e]
                 test TVoid        = "void?"
                 test TVec         = "vector?"
                 test TPair        = "pair?"
+                test TPort        = "port?"
                 test (TFun _ _ _) = "procedure?"
 
         syn e = Expr LSyn e
