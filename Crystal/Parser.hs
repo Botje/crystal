@@ -30,6 +30,7 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
            <|> (char '\\' >> 
                  (do     (try (string "space") >> whiteSpace >> return (LitChar ' '))
                      <|> (try (string "newline") >> whiteSpace >> return (LitChar '\n'))
+                     <|> (try (string "tab") >> whiteSpace >> return (LitChar '\t'))
                      <|> (anyChar >>= \c -> whiteSpace >> return (LitChar c))))
 
 quote =     literal
