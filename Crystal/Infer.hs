@@ -143,7 +143,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                      let t_set = TVoid 
                                      let ef_set = effectSingleton var `mappend` ef_exp
                                      let e_f = Expr (LSource (f^.ann) :*: TAny :*: emptyEffect) (Ref "set!")
-                                     let e_var = Expr (LSource l_v :*: TAny :*: mempty) (Ref var)
+                                     let e_var = Expr (LSource l_v :*: TAny :*: emptyEffect) (Ref var)
                                      return $ Expr (l' :*: t_set :*: ef_set) (Appl e_f [e_var, e_exp])
             | otherwise -> do (e_f, t_f, ef_f) <- goT f
                               e_args <- mapM go args

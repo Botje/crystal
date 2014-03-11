@@ -214,12 +214,12 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
 
         -- With every type test τ? x, fix type of x to τ until next assignment.
         walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
+        walk (Expr _ (Lit _)) = return ()
+        walk (Expr _ (Ref _)) = return ()
         walk (Expr (l :*: c :*: ef) ie) =
           do c' <- stripWithCache l c
              updateCachedTypes l c'
              case ie of
-               (Lit    _)             -> return ()
-               (Ref    r)             -> return ()
                -- Function application can affect variables. Reset their type.
                (Appl   f args)        -> do mapM_ walk (f:args)
                                             forM_ (effectToList ef) $ \id -> modify (M.insert id (unknownLabel :*: TAny))
@@ -236,7 +236,7 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                (Lambda ids bod)       -> do cached <- get
                                             let act = do forM_ allSet $ \id -> modify $ M.insert id (unknownLabel :*: TAny)
                                                          forM_ ids $ \id -> modify $ M.insert id (l :*: TAny)
-                                                         walk bod -- TODO: walk bod with x: TAny for all mutable variables x
+                                                         walk bod
                                             lift $ evalStateT act cached
                (Begin  exps)          -> mapM_ walk exps
 
