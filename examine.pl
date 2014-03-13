@@ -3,6 +3,8 @@ use strict;
 use warnings;
 
 use Data::Dumper;
+use Text::Table;
+use File::Slurp;
 
 use IPC::Run qw(run);;
 
@@ -25,7 +27,10 @@ sub crystal {
 	$out =~ s/.*--- STATS ---//s;
 
 	while ($out =~ s,<([\w\s]+)>(.*)</\1>,,s) {
-		$ret->{$1} = $2;
+		my ($key, $text) = ($1, $2);
+		$text =~ s/\Q<![CDATA[//;
+		$text =~ s/\Q]]>//;
+		$ret->{$key} = $text;
 	}
 	$ret
 }
@@ -51,18 +56,36 @@ sub processMovedChecks {
 	splice @ret, 0, 5;
 }
 
+sub countLOC {
+	my @lines = read_file(shift);
+	s/;.*// for @lines;
+	@lines = grep /\S/, @lines;
+	scalar @lines;
+}
+
+my $tt = Text::Table->new("Filename", "LOC", "Dumb", "Smart", "Top 5 comp. dist");
+
 for my $filename (@ARGV) {
+	print STDERR "Smart $filename...";
 	my $smart = crystal [@smart, $filename];
+	print STDERR ($smart ? "OK" : "NOT OK"), "\n";
+	next unless defined $smart;
+	print STDERR "Dumb $filename...";
 	next unless defined $smart;
 	my $dumb = crystal [@dumb, $filename];
 
-	my $reduced = 1.0 - ($smart->{"Number of checks"} / $dumb->{"Number of checks"});
-	$reduced *= 100;
+	print STDERR "OK\n";
+
+	my @reduced = (0+$dumb->{"Number of checks"}, 0+$smart->{"Number of checks"});
+	# $reduced = 1.0 - ($smart->{"Number of checks"} / $dumb->{"Number of checks"});
+	# $reduced *= 100;
+	# $reduced = sprintf '%.0f \%%', $reduced;
 
 	my $top5 = join ", ", processMovedChecks($smart->{"Mobility stats"});
 
-	my ($base) = $filename =~ m!/([^/]+)\.sch!;
+	my ($base) = $filename =~ m!/([^/]+)(\.\w+)?$!;
 
-	my $line = join " & " => $base, "<TODO>", (sprintf '%.0f \%%', $reduced), $top5;
-	print "$line \\\\\n";
+	$tt->load([ $base, countLOC($filename), @reduced, $top5 ]);
 }
+
+print $tt;
