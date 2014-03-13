@@ -174,8 +174,8 @@ alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.ke
               withNewNames ids comp =
                 do seenSet <- get
                    let (seen, notseen) = partition (`S.member` seenSet) ids
-                   put $ S.fromList notseen `S.union` seenSet
                    let newnames = zipWith (\s i -> (s, concat [s, "-", show i])) seen [1+S.size seenSet..]
+                   put $ S.fromList (map snd newnames) `S.union` S.fromList notseen `S.union` seenSet
                    let oldnames = zip notseen notseen
                    local (M.union $ M.fromList (newnames ++ oldnames)) comp
           in
