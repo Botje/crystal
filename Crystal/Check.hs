@@ -184,14 +184,14 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                            modify $ M.map (_1 %~ (simplifyC . mergeSameChecks . simplifyC))
 
         stripWithCache :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) Check
-        stripWithCache l cs = do check <- transformM strip cs
+        stripWithCache l cs = do check <- simplifyC <$> transformM strip cs
                                  lift $ updateChecksMap l $ \_ -> check
                                  return check
           where strip c@(Check ls typ (Right id)) =
                   do res <- gets $ M.lookup id
                      case res of
                           Just (l_top :*: typ_top)
-                            | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> Cand [check, c]
+                            | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> simplifyC $ Cand [check, c]
                                                    return Cnone
                           _ -> return c
                 strip x = return x
