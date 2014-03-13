@@ -23,9 +23,18 @@ import Crystal.Pretty
 import Crystal.Seq
 
 transformC :: Expr Label -> Step (Expr Label)
-transformC = toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
+transformC = denestLet <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
 
-alphaRename, splitLetRecs, flattenLets, expandMacros, toANF :: Expr Label -> Step (Expr Label)
+alphaRename, splitLetRecs, flattenLets, expandMacros, toANF, denestLet :: Expr Label -> Step (Expr Label)
+
+denestLet expr = return $ rewriteBi denest expr
+  where denest :: Expr Label -> Maybe (Expr Label)
+        denest (Expr l (Let [(id, expr)] bod))
+                  | Expr l_i (Let [(id_i, expr_i)] bod_i) <- expr
+                  , "tmp-" `isPrefixOf` id
+                  , "tmp-" `isPrefixOf` id_i =
+                   Just $ Expr l_i $ Let [(id_i, expr_i)] (Expr l $ Let [(id, bod_i)] bod)
+        denest x = Nothing
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
