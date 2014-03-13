@@ -253,7 +253,7 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
   where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
         stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) checkDepths
         checkDepths = execWriter (runReaderT (go 0 expr) M.empty)
-        numChecks = length [ () | (Expr (_ :*: check :*: _) _) <- universe expr, check /= Cnone]
+        numChecks = length [ () | (Expr (_ :*: cs :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
 
         go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
         go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
