@@ -6,3 +6,8 @@ span.label {
 	border: 1px solid green;
 	font-size: 50%;
 }
+
+span.error {
+	border: 1px solid red;
+	font-size: 50%;
+}

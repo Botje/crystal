@@ -37,14 +37,22 @@ $(function() {
 		var div = $("<span class='label' />");
 		var lab = this.a.label;
 		lab = lab.replace(/^LSource /,"");
-		lab = lab.replace(/"/,"");
-		lab = lab.replace(/"/,"");
+		lab = lab.replace(/"/g,"");
 		lab = lab.replace(/^LPrim /,"");
 		this.a.label = lab;
 		div.text(lab);
 		div.attr('title', JSON.stringify(this.a, null, " "));
 		div.tooltip();
 		out.append(div);
+
+		if (this.a.check.length == 0 || this.a.check == "Cnone")
+			return;
+
+		var check = this.a.check.replace(/Check \[.*?\] /g, "");
+		check = check.replace(/Right /g,"");
+		var div2 = $("<span class='error' />");
+		div2.text(check);
+		out.append(div2);
 	}
 
 	function Cons(l, r) {
