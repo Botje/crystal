@@ -193,7 +193,7 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                           Just (l_top :*: typ_top)
                             | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> Cand [check, c]
                                                    return Cnone
-                          _                  -> return cs
+                          _ -> return c
                 strip x = return x
                 updateChecksMap l f = do map <- get
                                          let Just (c :*: ef) = M.lookup l map
