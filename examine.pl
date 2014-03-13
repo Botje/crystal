@@ -10,8 +10,8 @@ unless (@ARGV) {
 	die "Usage: $0 filename [filename...]\n";
 }
 
-my @smart = qw(./run.sh);
-my @dumb  = qw(./run.sh --no-mobility --dumb);
+my @smart = qw(./run.sh --stats);
+my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
 
 sub crystal {
 	my $cmd = shift,
