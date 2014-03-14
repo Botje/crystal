@@ -5,12 +5,16 @@ use warnings;
 use Data::Dumper;
 use Text::Table;
 use File::Slurp;
-
-use IPC::Run qw(run);;
+use Getopt::Long;
+use IPC::Run qw(run);
 
 unless (@ARGV) {
 	die "Usage: $0 filename [filename...]\n";
 }
+
+our $tex = 0;
+
+GetOptions("tex" => \$tex);
 
 my @smart = qw(./run.sh --stats);
 my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
@@ -28,8 +32,8 @@ sub crystal {
 
 	while ($out =~ s,<([\w\s]+)>(.*)</\1>,,s) {
 		my ($key, $text) = ($1, $2);
-		$text =~ s/\Q<![CDATA[//;
-		$text =~ s/\Q]]>//;
+		$text =~ s/\s*\Q<![CDATA[//;
+		$text =~ s/\Q]]>\E\s*//;
 		$ret->{$key} = $text;
 	}
 	$ret
@@ -63,7 +67,13 @@ sub countLOC {
 	scalar @lines;
 }
 
-my $tt = Text::Table->new("Filename", "LOC", "Dumb", "Smart", "Top 5 comp. dist");
+our @columns = ("Filename", "LOC", "Dumb", "Smart", "Top 5 comp. dist");
+
+our @sepcolumns = map { ($_, $tex ? \' & ' : \' | ') } @columns;
+
+$sepcolumns[-1] = \' \\\\' if $tex;
+
+our $tt = Text::Table->new(@sepcolumns);
 
 for my $filename (@ARGV) {
 	print STDERR "Smart $filename...";
