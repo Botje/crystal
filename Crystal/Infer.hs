@@ -69,13 +69,15 @@ generateDumb e = go e
              let l' = LSource l
                  simply = Expr (l' :*: TAny :*: mempty) in
                case expr of
-                 Appl op args         -> 
+                 Appl op args ->
                   let (op_, args_) = (go op, map go args)
-                      (Expr l_r (Ref r)) = op_
+                      (Expr (l_r :*: _) (Ref r)) = op_
                   in case M.lookup r main_env of
-                          Just (LPrim nam :*: t_f :*: _) -> Expr (l' :*: applyPrim (instantiatePrim nam l' t_f) (map getTypeAndLabel args_) :*: mempty) (Appl op_ args_)
-                          -- TODO: Generate TVar in l_r, reference with a TIf.
-                          Nothing       -> Expr (l' :*: TAny :*: mempty) (Appl op_ args_)
+                          Just (LPrim nam :*: t_f :*: _) ->
+                            Expr (l' :*: applyPrim (instantiatePrim nam l' t_f) (map getTypeAndLabel args_) :*: mempty) (Appl op_ args_)
+                          Nothing ->
+                            let typ = TIf (l', l_r) (TFun (map (const 42) args_) emptyEffect TAny) TAny TAny
+                            in Expr (l' :*: typ :*: mempty) (Appl op_ args_)
                  Lit lit              -> simply (Lit lit)
                  Ref r                -> simply (Ref r)
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
