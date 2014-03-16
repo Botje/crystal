@@ -67,7 +67,7 @@ sub countLOC {
 	scalar @lines;
 }
 
-our @columns = ("Filename", "LOC", "Dumb", "Smart", "Top 5 comp. dist");
+our @columns = ("Filename", "LOC", "Dyn", "BP", "Red.", "Top 5 comp. dist");
 
 our @sepcolumns = map { ($_, $tex ? \' & ' : \' | ') } @columns;
 
@@ -87,13 +87,14 @@ for my $filename (@ARGV) {
 	print STDERR "OK\n";
 
 	my @reduced = (0+$dumb->{"Number of checks"}, 0+$smart->{"Number of checks"});
+	push @reduced, $reduced[0] == 0 ? "N/A" : sprintf "%.2f\\%%", 100 - 100 * $reduced[1] / $reduced[0];
 	# $reduced = 1.0 - ($smart->{"Number of checks"} / $dumb->{"Number of checks"});
 	# $reduced *= 100;
 	# $reduced = sprintf '%.0f \%%', $reduced;
 
 	my $top5 = join ", ", processMovedChecks($smart->{"Mobility stats"});
 
-	my ($base) = $filename =~ m!/([^/]+)(\.\w+)?$!;
+	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
 
 	$tt->load([ $base, countLOC($filename), @reduced, $top5 ]);
 }
