@@ -67,7 +67,7 @@ sub countLOC {
 	scalar @lines;
 }
 
-our @columns = ("Filename", "LOC", "Dyn", "BP", "Red.", "Top 5 comp. dist");
+our @columns = ("Filename", "LOC", "Dyn", "BP", "Remaining", "Top 5 comp. dist");
 
 our @sepcolumns = map { ($_, $tex ? \' & ' : \' | ') } @columns;
 
@@ -87,7 +87,7 @@ for my $filename (@ARGV) {
 	print STDERR "OK\n";
 
 	my @reduced = (0+$dumb->{"Number of checks"}, 0+$smart->{"Number of checks"});
-	push @reduced, $reduced[0] == 0 ? "N/A" : sprintf "%.2f\\%%", 100 - 100 * $reduced[1] / $reduced[0];
+	push @reduced, $reduced[0] == 0 ? "N/A" : sprintf "%.2f\\%%", 100 * $reduced[1] / $reduced[0];
 	# $reduced = 1.0 - ($smart->{"Number of checks"} / $dumb->{"Number of checks"});
 	# $reduced *= 100;
 	# $reduced = sprintf '%.0f \%%', $reduced;
