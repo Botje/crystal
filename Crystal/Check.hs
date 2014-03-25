@@ -1,5 +1,6 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 {-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
+{-#LANGUAGE TemplateHaskell #-}
 module Crystal.Check where
 
 import Control.Applicative
@@ -14,7 +15,7 @@ import Debug.Trace
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text.Lazy as T
-import Data.Generics
+import Data.Generics hiding (GT)
 import Data.Generics.Biplate
 
 import Crystal.AST
@@ -23,6 +24,14 @@ import Crystal.Config
 import Crystal.Misc
 import Crystal.Tuple
 import Crystal.Type
+
+type Depth = Int
+data MobilityInfo = MI {
+  _bindDepths :: M.Map Ident Depth,
+  _checkDepths :: M.Map Int (M.Map Ident Depth)
+}
+
+$(makeLenses ''MobilityInfo)
 
 data Check = Cnone
            | Cand [Check]
@@ -242,7 +251,18 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
 
 
 
+data Distance = Distance Depth Depth Depth
 
+instance Show Distance where
+  showsPrec _ (Distance def check use) = \s -> (show def ++ "-" ++ show check) ++ s
+
+mkDistance def check use = Distance (use - def) (check - def) 0
+
+
+(Distance d1 c1 u1) `lowestCheckAndUse` (Distance d2 c2 u2) = 
+  case ((c1 `compare` c2) `mappend` (u1 `compare` u2)) of
+       GT -> Distance d1 c1 u1
+       _  -> Distance d2 c2 u2
 
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
@@ -250,12 +270,12 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                   report "Mobility stats" (T.pack $ format stats)
                                   report "Number of checks" (T.pack $ show numChecks)
                                 return expr
-  where format stats = unlines [ k ++ "\t" ++ unwords (map show vs) | (k, vs) <- M.toAscList stats ]
-        stats = M.map sort $ M.fromListWith (++) $ map (over _2 return) checkDepths
-        checkDepths = execWriter (runReaderT (go 0 expr) M.empty)
+  where format stats = unlines [ k ++ "\t" ++ show d | (k, d) <- M.toAscList stats ]
+        stats = M.fromListWith lowestCheckAndUse compDists
+        compDists = execWriter (runReaderT (go 0 expr) (MI M.empty M.empty))
         numChecks = length [ () | (Expr (_ :*: cs :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
 
-        go :: Int -> Expr CheckedLabel -> ReaderT (M.Map Int [(Ident, Int)]) (Writer [(Ident, Int)]) ()
+        go :: Depth -> Expr CheckedLabel -> ReaderT MobilityInfo (Writer [(Ident, Distance)]) ()
         go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LVar _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LSource l :*: checks :*: _) e) =
@@ -265,18 +285,21 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                  Lit lit              -> return ()
                  Ref r                -> return ()
                  If cond cons alt     -> descend cond >> descend cons >> descend alt
-                 Let [(id, e)] bod    -> descend e >> descend bod
-                 LetRec bnds bod      -> mapM (descend.snd) bnds >> descend bod
-                 Lambda ids bod       -> descend bod
+                 Let [(id, e)] bod    -> descend e >> local (over bindDepths (M.insert id depth)) (descend bod)
+                 LetRec bnds bod      -> local (over bindDepths (M.union (M.fromList [ (id, depth) | (id, _) <- bnds ]))) $
+                                          mapM_ (descend.snd) bnds >> descend bod
+                 Lambda ids bod       -> local (over bindDepths (M.union (M.fromList [ (id, depth) | id <- ids ]))) (descend bod)
                  Begin exps           -> zipWithM_ go [depth+1..] exps
           where descend = go (depth + 1)
-                withChecks body = local (M.unionWith (++) newState) (forCurrentLabel >> body)
-                newState = M.fromListWith (++)
-                   [ (lab, [(target, depth)]) | Check labs _ (Right target) <- universe checks, LSource lab <- labs]
-                forCurrentLabel = do checks <- asks (M.lookup l)
+                withChecks body = local (over checkDepths (M.unionWith (M.unionWith min) newState)) (forCurrentLabel >> body)
+                newState :: M.Map Int (M.Map Ident Depth)
+                newState = M.fromListWith (M.unionWith const)
+                   [ (lab, M.singleton target depth) | Check labs _ (Right target) <- universe checks, LSource lab <- labs]
+                forCurrentLabel = do (MI bindsMap checksMap) <- ask
+                                     let checks = checksMap ^. at l
                                      case checks of
                                           Nothing      -> return ()
-                                          Just checks_ -> tell [ (i, depth - d0) | (i, d0) <- checks_ ]
+                                          Just checks_ -> tell [ (i, mkDistance d0 d depth) | (i, d) <- M.toList checks_, let Just d0 = bindsMap ^. at i ]
         go depth e        = error ("wtf " ++ show e)
 
 
