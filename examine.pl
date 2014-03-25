@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use Data::Dumper;
+use File::Temp qw(tempdir);
 use Text::Table;
 use File::Slurp;
 use Getopt::Long;
@@ -13,9 +14,9 @@ unless (@ARGV) {
 }
 
 our $tex = 0;
-our $summarize = 1;
+our $plot = 0;
 
-GetOptions("tex" => \$tex, "summarize!" => \$summarize);
+GetOptions("tex!" => \$tex, "plot!" => \$plot);
 
 my @smart = qw(./run.sh --stats);
 my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
@@ -41,33 +42,15 @@ sub crystal {
 }
 
 sub processMovedChecks {
-	my $input = shift;
+	my ($input) = @_;
 
 	my %vars = map {split /\t/} grep /\t/, split /\n/, $input;
 	for my $k (keys %vars) {
-		my @values = sort { $a <=> $b } split " ", $vars{$k};
-		if ($summarize) {
-			$vars{$k} = [$values[0], $values[$#values/2], $values[-1]];
-		} else {
-			$vars{$k} = $values[-1];
-			delete $vars{$k} if $values[-1] == 0;
-		}
+		delete $vars{$k} unless $vars{$k} =~ /\S/;
 	}
 	
-	if ($summarize) {
-		my @sortedkeys = sort {$vars{$b}[1] <=> $vars{$a}[1]} keys %vars;
-		my @ret;
-
-		for my $k (@sortedkeys) {
-			my $stats = join "/", @{ $vars{$k} };
-			push @ret, "$k ($stats)";
-		}
-
-		return join ", " => splice @ret, 0, 5;
-	} else {
-		my @values = sort { $b <=> $a } values %vars;
-		return join " ", @values;
-	}
+	my @values = map { $_->[0] } sort { $b->[1] - $b->[2] <=> $a->[1] - $a->[1] || $b->[1] <=> $a->[1] } map [ $_, split "-"], values %vars;
+	return join " ", @values;
 }
 
 sub countLOC {
@@ -84,6 +67,12 @@ our @sepcolumns = map { ($_, $tex ? \' & ' : \' | ') } @columns;
 $sepcolumns[-1] = \' \\\\' if $tex;
 
 our $tt = Text::Table->new(@sepcolumns);
+
+our $plotdir;
+
+if ($plot) {
+	$plotdir = tempdir();
+}
 
 for my $filename (@ARGV) {
 	print STDERR "Smart $filename...";
@@ -102,11 +91,24 @@ for my $filename (@ARGV) {
 	# $reduced *= 100;
 	# $reduced = sprintf '%.0f \%%', $reduced;
 
+	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
+
 	my $top5 = processMovedChecks($smart->{"Mobility stats"});
 
-	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
+	if ($plot) {
+		open my $plotdata, ">", "$plotdir/$base.data" or die "Cannot open file";
+		for my $tup (split " ", $top5) {
+			print {$plotdata} join "\t", split "-", $tup;
+			print {$plotdata} "\n";
+		}
+		close $plotdata;
+	}
 
 	$tt->load([ $base, countLOC($filename), @reduced, $top5 ]);
 }
 
 print $tt;
+
+if ($plot) {
+	print "Plot data is in $plotdir\n";
+}
