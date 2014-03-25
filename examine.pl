@@ -13,8 +13,9 @@ unless (@ARGV) {
 }
 
 our $tex = 0;
+our $summarize = 1;
 
-GetOptions("tex" => \$tex);
+GetOptions("tex" => \$tex, "summarize!" => \$summarize);
 
 my @smart = qw(./run.sh --stats);
 my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
@@ -45,19 +46,28 @@ sub processMovedChecks {
 	my %vars = map {split /\t/} grep /\t/, split /\n/, $input;
 	for my $k (keys %vars) {
 		my @values = sort { $a <=> $b } split " ", $vars{$k};
-		$vars{$k} = [$values[0], $values[$#values/2], $values[-1]];
+		if ($summarize) {
+			$vars{$k} = [$values[0], $values[$#values/2], $values[-1]];
+		} else {
+			$vars{$k} = $values[-1];
+			delete $vars{$k} if $values[-1] == 0;
+		}
 	}
 	
-	my @sortedkeys = sort {$vars{$b}[1] <=> $vars{$a}[1]} keys %vars;
+	if ($summarize) {
+		my @sortedkeys = sort {$vars{$b}[1] <=> $vars{$a}[1]} keys %vars;
+		my @ret;
 
-	my @ret;
+		for my $k (@sortedkeys) {
+			my $stats = join "/", @{ $vars{$k} };
+			push @ret, "$k ($stats)";
+		}
 
-	for my $k (@sortedkeys) {
-		my $stats = join "/", @{ $vars{$k} };
-		push @ret, "$k ($stats)";
+		return join ", " => splice @ret, 0, 5;
+	} else {
+		my @values = sort { $b <=> $a } values %vars;
+		return join " ", @values;
 	}
-
-	splice @ret, 0, 5;
 }
 
 sub countLOC {
@@ -92,7 +102,7 @@ for my $filename (@ARGV) {
 	# $reduced *= 100;
 	# $reduced = sprintf '%.0f \%%', $reduced;
 
-	my $top5 = join ", ", processMovedChecks($smart->{"Mobility stats"});
+	my $top5 = processMovedChecks($smart->{"Mobility stats"});
 
 	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
 
