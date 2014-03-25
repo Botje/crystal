@@ -266,9 +266,11 @@ mkDistance def check use = Distance (use - def) (check - def) 0
 
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
+                                doMobility <- asks (^.cfgCheckMobility)
                                 when generateStats $ do
-                                  report "Mobility stats" (T.pack $ format stats)
                                   report "Number of checks" (T.pack $ show numChecks)
+                                when (generateStats && doMobility) $ do
+                                  report "Mobility stats" (T.pack $ format stats)
                                 return expr
   where format stats = unlines [ k ++ "\t" ++ show d | (k, d) <- M.toAscList stats ]
         stats = M.fromListWith lowestCheckAndUse compDists
