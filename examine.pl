@@ -14,9 +14,9 @@ unless (@ARGV) {
 }
 
 our $tex = 0;
-our $plot = 0;
+our $plotdir;
 
-GetOptions("tex!" => \$tex, "plot!" => \$plot);
+GetOptions("tex!" => \$tex, "no-plot" => sub { $plotdir = ""; }, "o|plotdir=s" => \$plotdir);
 
 my @smart = qw(./run.sh --stats);
 my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
@@ -49,7 +49,7 @@ sub processMovedChecks {
 		delete $vars{$k} unless $vars{$k} =~ /\S/;
 	}
 	
-	my @values = map { $_->[0] } sort { $b->[1] - $b->[2] <=> $a->[1] - $a->[1] || $b->[1] <=> $a->[1] } map [ $_, split "-"], values %vars;
+	my @values = map { $_->[0] } sort { $b->[1] <=> $a->[1] || $b->[2] <=> $a->[2] } map [ $_, split "-"], values %vars;
 	return join " ", @values;
 }
 
@@ -68,10 +68,12 @@ $sepcolumns[-1] = \' \\\\' if $tex;
 
 our $tt = Text::Table->new(@sepcolumns);
 
-our $plotdir;
-
-if ($plot) {
-	$plotdir = tempdir();
+our $doplot;
+if ($plotdir eq "") {
+	$doplot = 0;
+} else {
+	$plotdir //= tempdir();
+	$doplot = 1;
 }
 
 for my $filename (@ARGV) {
@@ -95,7 +97,7 @@ for my $filename (@ARGV) {
 
 	my $top5 = processMovedChecks($smart->{"Mobility stats"});
 
-	if ($plot) {
+	if ($doplot) {
 		open my $plotdata, ">", "$plotdir/$base.data" or die "Cannot open file";
 		for my $tup (split " ", $top5) {
 			print {$plotdata} join "\t", split "-", $tup;
@@ -109,6 +111,6 @@ for my $filename (@ARGV) {
 
 print $tt;
 
-if ($plot) {
+if ($doplot) {
 	print "Plot data is in $plotdir\n";
 }
