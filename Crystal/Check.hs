@@ -1,6 +1,5 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 {-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
-{-#LANGUAGE TemplateHaskell #-}
 module Crystal.Check where
 
 import Control.Applicative
@@ -24,14 +23,6 @@ import Crystal.Config
 import Crystal.Misc
 import Crystal.Tuple
 import Crystal.Type
-
-type Depth = Int
-data MobilityInfo = MI {
-  _bindDepths :: M.Map Ident Depth,
-  _checkDepths :: M.Map Int (M.Map Ident Depth)
-}
-
-$(makeLenses ''MobilityInfo)
 
 data Check = Cnone
            | Cand [Check]
@@ -264,6 +255,12 @@ mkDistance def check use = Distance (use - def) (check - def) 0
        GT -> Distance d1 c1 u1
        _  -> Distance d2 c2 u2
 
+data MobilityReport = MRPing Depth | MRAT Ident Distance | MRRAT Depth Ident Distance
+
+relativeDistance :: Depth -> Distance -> Distance
+relativeDistance d (Distance def check use) = Distance (f def) (f check) (f use)
+  where f x = (x * 100) `div` d
+
 generateMobilityStats :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 doMobility <- asks (^.cfgCheckMobility)
@@ -274,10 +271,10 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                 return expr
   where format stats = unlines [ k ++ "\t" ++ show d | (k, d) <- M.toAscList stats ]
         stats = M.fromListWith lowestCheckAndUse compDists
-        compDists = execWriter (runReaderT (go 0 expr) (MI M.empty M.empty))
+        compDists = [ (id, relativeDistance d d') | MRRAT d id d' <- execWriter (runReaderT (go 0 expr) (MI M.empty M.empty)) ]
         numChecks = length [ () | (Expr (_ :*: cs :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
 
-        go :: Depth -> Expr CheckedLabel -> ReaderT MobilityInfo (Writer [(Ident, Distance)]) ()
+        go :: Depth -> Expr CheckedLabel -> ReaderT MobilityInfo (Writer [MobilityReport]) ()
         go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LVar _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LSource l :*: checks :*: _) e) =
@@ -290,10 +287,13 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                  Let [(id, e)] bod    -> descend e >> local (over bindDepths (M.insert id depth)) (descend bod)
                  LetRec bnds bod      -> local (over bindDepths (M.union (M.fromList [ (id, depth) | (id, _) <- bnds ]))) $
                                           mapM_ (descend.snd) bnds >> descend bod
-                 Lambda ids bod       -> local (over bindDepths (M.union (M.fromList [ (id, depth) | id <- ids ]))) (descend bod)
+                 Lambda ids bod       ->
+                   local (over bindDepths (M.union (M.fromList [ (id, depth) | id <- ids ]))) $
+                     censor (makeRelative ids) (descend bod)
                  Begin exps           -> zipWithM_ go [depth+1..] exps
           where descend = go (depth + 1)
-                withChecks body = local (over checkDepths (M.unionWith (M.unionWith min) newState)) (forCurrentLabel >> body)
+                withChecks body = local (over checkDepths (M.unionWith (M.unionWith min) newState)) $
+                  tell [MRPing depth] >> forCurrentLabel >> body
                 newState :: M.Map Int (M.Map Ident Depth)
                 newState = M.fromListWith (M.unionWith const)
                    [ (lab, M.singleton target depth) | Check labs _ (Right target) <- universe checks, LSource lab <- labs]
@@ -301,9 +301,14 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                                      let checks = checksMap ^. at l
                                      case checks of
                                           Nothing      -> return ()
-                                          Just checks_ -> tell [ (i, mkDistance d0 d depth) | (i, d) <- M.toList checks_, let Just d0 = bindsMap ^. at i ]
+                                          Just checks_ -> tell [ MRAT i (mkDistance d0 d depth)
+                                                               | (i, d) <- M.toList checks_
+                                                               , let Just d0 = bindsMap ^. at i ]
+                makeRelative ids reports = concatMap select reports
+                  where realDepth = maximum [ d | MRPing d <- reports ] - depth
+                        select (MRAT id d) | id `elem` ids = [MRRAT realDepth id d]
+                        select report     = [report]
         go depth e        = error ("wtf " ++ show e)
-
 
 reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
 reifyChecks = return . go

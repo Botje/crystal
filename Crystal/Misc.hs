@@ -1,9 +1,12 @@
+{-#LANGUAGE TemplateHaskell #-}
 module Crystal.Misc where
 
+import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.Writer
 import Debug.Trace
 import Data.Text.Lazy
+import qualified Data.Map as M
 
 import Crystal.AST
 import Crystal.Pretty
@@ -20,3 +23,11 @@ spyP expr = trace (pretty expr) $ return expr
 
 report :: String -> Text -> Step ()
 report header contents = tell [(header,contents)]
+
+type Depth = Int
+data MobilityInfo = MI {
+  _bindDepths :: M.Map Ident Depth,
+  _checkDepths :: M.Map Int (M.Map Ident Depth)
+}
+
+$(makeLenses ''MobilityInfo)
