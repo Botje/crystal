@@ -15,7 +15,10 @@ prettyD (decls, expr) =
 
 prettyE (Expr l (Ref ident))         = text ident
 prettyE (Expr l (Appl e args))       = appl $ map prettyE (e:args)
-prettyE (Expr l (If cond cons alt))  = appl (text "if" : map prettyE [cond, cons, alt])
+prettyE (Expr l (If cond cons alt))  =
+  case alt of
+       Expr _ (Lit LitVoid) -> appl (text "if" : map prettyE [cond, cons])
+       otherwise            -> appl (text "if" : map prettyE [cond, cons, alt])
 prettyE (Expr l (Let bds bod))       = appl [op, parens (vcat $ map (\(i,e) -> appl [text i, prettyBE e]) bds) , prettyBE bod]
   where op = if length bds > 1 then text "let*" else text "let"
 prettyE (Expr l (LetRec bds bod))    = appl [text "letrec" , parens (vcat $ map (\(i,e) -> appl [text i, prettyBE e]) bds) , prettyBE bod]
