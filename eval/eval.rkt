@@ -18,6 +18,12 @@
         (mcdr x)
         (error "Could not look up" var))))
 
+(define (eval-set! var val env)
+  (let ((cell (assocm var env)))
+    (if cell
+        (begin (set-mcdr! cell val) val)
+        (error "Could not look up" var))))
+
 (define (eval-begin stmts env)
   (if (null? (cdr stmts))
       (eval (car stmts) env)
@@ -85,6 +91,10 @@
      (unless (eval-predicate pred env)
        (error "Check failed" pred))
      (eval bod env)]
+    [(list 'time exps ...)
+     (eval-begin exps env)]
+    [(list 'set! var exp)
+     (eval-set! var (eval exp env) env)]
     [(list 'begin)
      (void)]
     [(list 'begin exp)
