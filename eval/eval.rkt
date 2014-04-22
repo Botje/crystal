@@ -280,3 +280,10 @@
 
 (define (start-eval exp)
   (eval exp *global-env*))
+
+(define (main . args)
+  (match args
+    [(list filename)
+     (with-input-from-file filename
+       (thunk (start-eval (read))))]
+    ['() (start-eval (read))]))
