@@ -14,7 +14,8 @@ data Config =
            _cfgCheckMobility :: Bool,
            _cfgMobilityStats :: Bool,
            _cfgDumpTypes :: Bool,
-           _cfgDumpTree  :: Bool
+           _cfgDumpTree  :: Bool,
+           _cfgAnnotateLabels :: Bool
          } deriving (Show, Eq, Data, Typeable)
 
 $(makeLenses ''Config)
@@ -29,4 +30,6 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                                               True  &= help "Dump top-level types" &= name "types" &= explicit ]
                      , _cfgDumpTree = enum [ False &= ignore,
                                              True  &= help "Dump results of intermediate steps" &= name "d" &= explicit ]
+                     , _cfgAnnotateLabels = enum [ False &= ignore,
+                                                   True &= help "Annotate expressions with labels" &= name "@" &= explicit ]
                      }

@@ -42,7 +42,7 @@ annEffect :: Simple Lens (Expr CheckedLabel) Effect
 annEffect = ann._2._2
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
-addChecks = reifyChecks <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
+addChecks = reifyChecks <=< maybeAnnotateLabels <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
 
 maybeDumpTree :: ToJSON a => String -> Expr a -> Step (Expr a)
 maybeDumpTree tag expr =
@@ -309,6 +309,21 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                         select (MRAT id d) | id `elem` ids = [MRRAT realDepth id d]
                         select report     = [report]
         go depth e        = error ("wtf " ++ show e)
+
+maybeAnnotateLabels :: Expr CheckedLabel -> Step (Expr CheckedLabel)
+maybeAnnotateLabels expr = do doAnnotate <- asks (^.cfgAnnotateLabels)
+                              if doAnnotate
+                                 then return $ annotate expr
+                                 else return expr
+
+annotate :: Expr CheckedLabel -> Expr CheckedLabel
+annotate expr = transformBi ann expr
+  where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _) _ <- universe expr, Check labs _ _ <- universeBi checks, LSource lab <- labs]
+        syn x = Expr (LSyn :*: Cnone :*: emptyEffect) x 
+        ann (Expr (LSource l :*: cs :*: ef) (Appl f args)) | l `S.member` annotatedLabels =
+          Expr (LSource l :*: cs :*: ef) $ Appl (syn $ Ref "@") (syn (Lit (LitInt (fromIntegral l))) : f : args)
+        ann x = x
+
 
 reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
 reifyChecks = return . go
