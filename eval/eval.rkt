@@ -5,6 +5,8 @@
 
 (define *global-env* '())
 
+(define *evaluating-predicate* (make-parameter #f))
+
 (define (assocm var env)
   (if (null? env)
       env
@@ -75,7 +77,13 @@
     [(list fun ref labels ...)
      (eval `(,fun ,ref) env)]))
 
+(define *tick-count* 0)
+(define (tick)
+  (unless (*evaluating-predicate*)
+    (set! *tick-count* (+ *tick-count* 1))))
+
 (define (eval exp env)
+  (when (pair? exp) (tick))
   (match exp
     [(list 'quote exp) exp]
     [(list 'if cond cons alt)
@@ -88,8 +96,9 @@
      (lambda real-args
        (eval-lambda args bod real-args env))]
     [(list 'check pred bod)
-     (unless (eval-predicate pred env)
-       (error "Check failed" pred))
+     (parameterize [(*evaluating-predicate* #t)]
+       (unless (eval-predicate pred env)
+         (error "Check failed" pred)))
      (eval bod env)]
     [(list 'time exps ...)
      (eval-begin exps env)]
