@@ -82,6 +82,9 @@
   (unless (*evaluating-predicate*)
     (set! *tick-count* (+ *tick-count* 1))))
 
+(define (report-tick-for lab)
+  'todo)
+
 (define (eval exp env)
   (when (pair? exp) (tick))
   (match exp
@@ -111,6 +114,11 @@
     [(list 'begin exp exps ...)
      (eval exp env)
      (eval `(begin ,@exps) env)]
+    [(list '@ lab fun args ...)
+     (report-tick-for lab)
+     (let ([fval (eval fun env)]
+           [vals (map (cut eval <> env) args)])
+       (apply fval vals))]
     [(list fun args ...)
      (let ([fval (eval fun env)]
            [vals (map (cut eval <> env) args)])
