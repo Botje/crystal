@@ -57,6 +57,14 @@
          [frame (map new-binding nams vals)])
     (eval-begin body (append frame env))))
 
+(define (eval-let* binds body env)
+  (match binds
+    ['() (eval-begin body env)]
+    [(list (list nam exp ...) binds ...)
+     (let* ([val (eval-begin exp env)]
+            [frame (new-binding nam val)])
+       (eval-let* binds body (cons frame env)))]))
+
 (define (eval-letrec binds body env)
   (let* ([nams (map car binds)]
          [exps (map cdr binds)]
@@ -126,6 +134,8 @@
      (if (eval cond env) (eval cons env) (eval alt env))]
     [(list 'let bnds bod ..1)
      (eval-let bnds bod env)]
+    [(list 'let* bnds bod ..1)
+     (eval-let* bnds bod env)]
     [(list 'letrec bnds bod ..1)
      (eval-letrec bnds bod env)]
     [(list 'lambda args bod ..1)
