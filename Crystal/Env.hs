@@ -14,15 +14,15 @@ type Env = M.Map Ident TypedLabel
 -- TODO: Support for floats
 main_env :: Env
 main_env = M.fromListWith or [
-    "="             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "+"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "*"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "-"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "/"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "<"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    ">"             --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    ">="            --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "<="            --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
+    "="             --> makeNumericVarFun "="  TBool,
+    "+"             --> makeNumericVarFun "+"  TInt,
+    "*"             --> makeNumericVarFun "*"  TInt,
+    "-"             --> makeNumericVarFun "-"  TInt,
+    "/"             --> makeNumericVarFun "/"  TInt,
+    "<"             --> makeNumericVarFun "<"  TBool,
+    ">"             --> makeNumericVarFun ">"  TBool,
+    ">="            --> makeNumericVarFun ">=" TBool,
+    "<="            --> makeNumericVarFun "<=" TBool,
     "abs"           --> TFun [1..1] emptyEffect . require [(TInt,1)] TInt,
     "append"        --> TFun [1..2] emptyEffect . require [(TPair,1), (TPair,2)] TPair,
     "apply"         --> TFun [1..2] emptyEffect . require [] TAny, -- todo function
@@ -68,24 +68,24 @@ main_env = M.fromListWith or [
     "expt"          --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
     "for-each"      --> TFun [1..2] emptyEffect . require [(TFun [3] emptyEffect TAny,1), (TPair,2)] TVoid,
     "format"        --> makeVarFun "format" (\args -> require [] TString),
-    "fp="           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fp+"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fp*"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fp-"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fp/"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fp<"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fp>"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fp>="          --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fp<="          --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fx="           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fx+"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fx*"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fx-"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fx/"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
-    "fx<"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fx>"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fx>="          --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
-    "fx<="          --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TBool,
+    "fp="           --> makeNumericVarFun "="  TBool,
+    "fp+"           --> makeNumericVarFun "+"  TInt,
+    "fp*"           --> makeNumericVarFun "*"  TInt,
+    "fp-"           --> makeNumericVarFun "-"  TInt,
+    "fp/"           --> makeNumericVarFun "/"  TInt,
+    "fp<"           --> makeNumericVarFun "<"  TBool,
+    "fp>"           --> makeNumericVarFun ">"  TBool,
+    "fp>="          --> makeNumericVarFun ">=" TBool,
+    "fp<="          --> makeNumericVarFun "<=" TBool,
+    "fx="           --> makeNumericVarFun "="  TBool,
+    "fx+"           --> makeNumericVarFun "+"  TInt,
+    "fx*"           --> makeNumericVarFun "*"  TInt,
+    "fx-"           --> makeNumericVarFun "-"  TInt,
+    "fx/"           --> makeNumericVarFun "/"  TInt,
+    "fx<"           --> makeNumericVarFun "<"  TBool,
+    "fx>"           --> makeNumericVarFun ">"  TBool,
+    "fx>="          --> makeNumericVarFun ">=" TBool,
+    "fx<="          --> makeNumericVarFun "<=" TBool,
     "fxmin"         --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
     "fxmod"         --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
     "gcd"           --> TFun [1..2] emptyEffect . require [(TInt,1), (TInt,2)] TInt,
@@ -163,9 +163,12 @@ main_env = M.fromListWith or [
     "zero?"         --> TFun [1..1] emptyEffect . require [] TBool
   ] where (-->) nam fun = (nam, LPrim nam :*: fun (LPrim nam) :*: emptyEffect)
           infix 5 -->
-          require tests return blame = foldr (f blame) return tests
-          f blame (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
-          makeVarFun name vf blame = TVarFun (VarFun name blame vf)
+          require tests return blame       = foldr f return tests
+            where f (prim, cause) return = TIf (blame, LVar cause) prim (TVar cause) return
+          requireVF tests return blame     = foldr f return tests
+            where f (prim, cause :*: typ) return = TIf (blame, cause) prim typ return
+          makeVarFun name vf blame         = TVarFun (VarFun name blame vf)
+          makeNumericVarFun name ret blame = TVarFun (VarFun name blame (\args blame -> requireVF [ (TInt, a) | a <- args ] ret blame))
           (LPrim nam :*: fun1 :*: ef1) `or` (LPrim _ :*: fun2 :*: ef2) = LPrim nam :*: Tor [fun1, fun2] :*: ef1 `mappend` ef2
 
 

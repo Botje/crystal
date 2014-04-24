@@ -155,7 +155,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                               case M.lookup fun main_env of -- TODO: why main_env?
                                    Just (LPrim nam :*: typ :*: _) ->
                                      -- TODO: Extract effect from function (see FunEffects)
-                                     do let t_apply = applyPrim (instantiatePrim nam l' t_f) tl_args
+                                     do let t_apply = instantiatePrim nam l' (applyPrim t_f tl_args)
                                         return $ Expr (l' :*: t_apply :*: mempty) (Appl e_f e_args)
                                    _ ->
                                      do let t_apply = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
@@ -203,7 +203,7 @@ apply :: Type -> [TypeNLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
 apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
 apply vf@(TVarFun _) a_args = expand (TAppl vf a_args)
-apply t_f@(TFun t_args ef t_bod) a_args | applies t_f a_args = expand (TAppl (TFun t_args ef t_bod) a_args)
+apply t_f@(TFun t_args ef t_bod) a_args | applies t_f a_args = expand (TAppl t_f a_args)
                                         | otherwise = TError
 apply (TVar v) a_args = TAppl (TVar v) a_args
 apply _ a_args = TError
