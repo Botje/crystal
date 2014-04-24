@@ -36,7 +36,7 @@ prettyL _ (LitInt i)    = int (fromIntegral i)
 prettyL _ (LitFloat f)  = double f
 prettyL _ (LitBool True) = text "#t"
 prettyL _ (LitBool False) = text "#f"
-prettyL _ (LitVoid) = text "#<void>"
+prettyL _ (LitVoid) = text "(void)"
 prettyL l (LitList els) = quoted l <> parens (hsep $ map (prettyL True) els)
 
 appl (x:xs) = parens (x <+> sep xs)
