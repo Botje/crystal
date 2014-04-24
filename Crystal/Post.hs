@@ -2,11 +2,13 @@ module Crystal.Post (postprocess, DeclExpr) where
 
 import Control.Lens hiding (transform)
 import Control.Monad
+import Control.Monad.Reader
 import Data.List
 import Data.Generics
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Config
 import Crystal.Misc
 import Crystal.Tuple
 import Crystal.Type
@@ -18,7 +20,10 @@ postprocess :: Expr TLabel -> Step DeclExpr
 postprocess = undoLetrec <=< undoLetLet
 
 undoLetrec :: Expr TLabel -> Step DeclExpr
-undoLetrec expr = return (decls, core)
+undoLetrec expr = do addDefines <- not `fmap` asks (^.cfgAnnotateLabels)
+                     if addDefines
+                        then return (decls, core)
+                        else return ([], expr)
   where (decls, core) = go expr
         go (Expr _ (LetRec bnds bod)) = go bod & _1 %~ (bnds++)
         go (Expr _ (Let bnds bod)) = go bod & _1 %~ (bnds++)
