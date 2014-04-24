@@ -335,6 +335,7 @@
        (new-binding 'vector vector)
        (new-binding 'vector? vector?)
        (new-binding 'void? void?)
+       (new-binding 'void void)
        (new-binding 'write write)
        (new-binding 'write-char write-char)
        (new-binding 'write-line our-write-line)
