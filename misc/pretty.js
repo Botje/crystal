@@ -149,9 +149,8 @@ $(function() {
 
 			case "FunctionExpression":
 				return parens(consS(text("lambda"),
-				                    parens(consS.apply(null, tree.params.map(text))),
-				                    indent(2, pretty(tree.body))))
-				return undefined;
+				                    parens(tree.params.length == 0 ? text("") : consS.apply(null, tree.params.map(text))),
+				                    indent(2, pretty(tree.body))));
 
 			case "SequenceExpression":
 				var exprs = tree.expressions.map(pretty);
