@@ -4,7 +4,7 @@
 ;; contributed by Anthony Borla
 ;; modified by Ivan Raikov
 
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("1000"))
 (define (argv) '())
 (define (add1 x) (+ x 1))
 

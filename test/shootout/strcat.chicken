@@ -1,6 +1,6 @@
 ;; strcat.scm
 
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("40000"))
 (define (argv) '())
 
 ;;; SPECIFICATION

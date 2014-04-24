@@ -16,4 +16,4 @@
       ((fx>= i n) sum) ) )
 
 (format #t "~,9f~%"
-	(sum-harmonic4 10000000))
+	(sum-harmonic4 100000))

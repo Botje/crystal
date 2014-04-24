@@ -8,5 +8,4 @@
 	((eof-object? myInt) (print sum))
       (set! sum (+ sum (string->number myInt))))))
 
-(main)
- 
+(with-input-from-file "sumcol.input" main)

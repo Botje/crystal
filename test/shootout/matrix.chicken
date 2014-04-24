@@ -2,7 +2,7 @@
 
 (define (add1 x) (+ 1 x))
 
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("10"))
 (define (argv) '())
 
 ;; Matrix.scm

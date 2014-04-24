@@ -3,7 +3,7 @@
 ;;;
 ;;; contributed by Anthony Borla
 
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("2500"))
 (define (argv) '())
 
 (define (main args)

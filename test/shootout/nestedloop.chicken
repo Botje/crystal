@@ -1,4 +1,4 @@
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("8"))
 (define (argv) '())
 
 (define (main n)

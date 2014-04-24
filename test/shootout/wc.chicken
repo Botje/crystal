@@ -18,4 +18,5 @@
 		   (else
 		     (wc #t lines (if i words (add1 words)) (add1 chars)))))))))
 
-(main (current-input-port))  
+(with-input-from-file "wc.input"
+	(lambda () (main (current-input-port))))

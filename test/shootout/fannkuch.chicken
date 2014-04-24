@@ -4,7 +4,7 @@
 ;;; slightly improved by Sven Hartrumpf, 2005-2006
 
 (define (command-line-arguments) '())
-(define (argv) '())
+(define (argv) '(#f "7"))
 
 (define (add1 i) (+ i 1))
 (define (sub1 i) (- i 1))

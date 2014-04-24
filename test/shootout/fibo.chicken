@@ -1,6 +1,6 @@
 ;;;; -Ob
 
-(define (command-line-arguments) '())
+(define (command-line-arguments) '("32"))
 (define (argv) '())
 
 (define (fib n)

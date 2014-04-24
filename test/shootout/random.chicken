@@ -3,7 +3,7 @@
 ;;; contributed by Anon
 
 (define (command-line-arguments) '())
-(define (argv) '())
+(define (argv) '(#f "1000"))
 
 (define IM   139968)
 (define IA     3877)
