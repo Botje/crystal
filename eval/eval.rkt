@@ -177,6 +177,8 @@
   (write-string str port)
   (newline port))
 
+(define (our-print . args)
+  (for-each display args))
 
 (set! *global-env*
       (list
@@ -285,7 +287,7 @@
        (new-binding 'port? port?)
        (new-binding 'positive? positive?)
        (new-binding 'procedure? procedure?)
-       (new-binding 'print print)
+       (new-binding 'print our-print)
        (new-binding 'printf printf)
        (new-binding 'quotient quotient)
        (new-binding 'read read)
