@@ -123,8 +123,9 @@
     (set-binding-use-time! cell *tick-count*)
     (display (cons var 
                    (map (lambda (f) (f cell))
-                        (list binding-def-time binding-check-time binding-use-time))))
-    (newline)))
+                        (list binding-def-time binding-check-time binding-use-time)))
+             (current-error-port))
+    (newline (current-error-port))))
 
 (define (eval exp env)
   (when (pair? exp) (tick))
