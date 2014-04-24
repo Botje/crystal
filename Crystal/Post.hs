@@ -1,6 +1,6 @@
 module Crystal.Post (postprocess, DeclExpr) where
 
-import Control.Lens hiding (transform)
+import Control.Lens hiding (transform, universe)
 import Control.Monad
 import Control.Monad.Reader
 import Data.List
@@ -34,15 +34,18 @@ undoLetLet = return . transformBi f
   where f e@(Expr l (Let [(id, app)] b)) =
           case b of
                Expr l' (If cond cons alt)
-                  | "tmp-" `isPrefixOf` id -> Expr l (If (inline id app cond) cons alt)
+                  | "tmp-" `isPrefixOf` id && 1 == id `mentionsIn` b -> Expr l (If (inline id app cond) cons alt)
                Expr l' (Let bnds bod)
-                  | "tmp-" `isPrefixOf` id -> inline id app b
+                  | "tmp-" `isPrefixOf` id && 1 == id `mentionsIn` b -> inline id app b
                   | otherwise              -> Expr l (Let ((id, app) : bnds) bod)
                Expr l' (Appl f args)
                  | "tmp-" `isPrefixOf` id && not (isRefTo "check" f) -> inline id app b
                Expr _ (Ref id') | id' == id -> app
                _ -> e
         f x = x
+
+mentionsIn :: Ident -> Expr TLabel -> Int
+mentionsIn id expr = length [ () | Expr _ (Ref id') <- universe expr, id == id' ]
 
 inline :: Ident -> Expr TLabel -> Expr TLabel -> Expr TLabel
 inline id expr = transformBi f
