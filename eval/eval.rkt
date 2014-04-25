@@ -121,11 +121,10 @@
         [labs (in-value (binding-check-labs cell))]
         #:when (set? labs))
     (set-binding-use-time! cell *tick-count*)
-    (display (cons var 
-                   (map (lambda (f) (f cell))
-                        (list binding-def-time binding-check-time binding-use-time)))
-             (current-error-port))
-    (newline (current-error-port))))
+    (let ([def (binding-def-time cell)]
+          [check (binding-check-time cell)]
+          [use (binding-use-time cell)]) 
+    (eprintf "~a ~a ~a~%" var (- use def) (- check def)))))
 
 (define (eval exp env)
   (when (pair? exp) (tick))
@@ -347,6 +346,8 @@
        (new-binding 'vector? vector?)
        (new-binding 'void? void?)
        (new-binding 'void void)
+       (new-binding 'with-input-from-file with-input-from-file)
+       (new-binding 'with-output-to-file with-output-to-file)
        (new-binding 'write write)
        (new-binding 'write-char write-char)
        (new-binding 'write-line our-write-line)
