@@ -157,6 +157,8 @@ main_env = M.fromListWith or [
     "vector"        --> makeVarFun "vector" (\args -> require [] TVec),
     "vector?"       --> TFun [1..1] emptyEffect . require [] TBool,
     "void?"         --> TFun [1..1] emptyEffect . require [] TBool,
+    "with-input-from-file" --> TFun [1..2] emptyEffect . require [(TString,1)] TVoid,
+    "with-output-to-file"  --> TFun [1..2] emptyEffect . require [(TString,1)] TVoid,
     "write"         --> TFun [1..1] emptyEffect . require [(TString,1)] TVoid,
     "write-char"    --> TFun [1..1] emptyEffect . require [(TChar,1)] TVoid,
     "write-line"    --> TFun [1..1] emptyEffect . require [(TString,1)] TVoid,
