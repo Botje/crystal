@@ -1,2 +1,3 @@
 #!/bin/sh
-./dist/build/crystal/crystal "$@"
+rundir=`dirname $0`
+$rundir/dist/build/crystal/crystal "$@"
