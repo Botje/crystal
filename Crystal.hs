@@ -36,10 +36,10 @@ process config fname cts =
        Right ast -> do let (ast', results) = runPipeline pipeline ast config
                        putStrLn $ prettyD $ ast'
                        when (not (null results)) $ do
-                         putStr "\n<extra-information>\n"
+                         hPutStr stderr "<extra-information>\n"
                          forM_ results $ \(header,cts) ->
-                           Data.Text.Format.print "<{}>\n<![CDATA[{}]]>\n</{}>\n" (header, cts, header)
-                         putStr "\n</extra-information>\n"
+                           Data.Text.Format.hprint stderr "<{}>\n<![CDATA[{}]]>\n</{}>\n" (header, cts, header)
+                         hPutStr stderr "\n</extra-information>\n"
 
 main = do config <- cmdArgs defaultArgs
           case config^.cfgInputFile of
