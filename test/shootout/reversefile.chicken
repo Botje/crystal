@@ -18,9 +18,9 @@
 
       (reverse-input)
 
-      (print line) ) ) )
+      (write-line line) ) ) )
 
 
 
-(main)
+(with-input-from-file "reversefile.input" main)
 
