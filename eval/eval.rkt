@@ -12,6 +12,7 @@
 
 (define *evaluating-predicate* (make-parameter #f))
 (define *counting-distance* (make-parameter #t))
+(define *current-function* (make-parameter "main"))
 (define *tick-count* 0)
 (define (tick)
   (unless (*evaluating-predicate*)
@@ -25,13 +26,14 @@
   (name
    (value #:mutable)
    def-time
+   function
    (check-time #:auto #:mutable)
    (check-labs #:auto #:mutable)
    (use-time   #:auto #:mutable))
   #:auto-value #f)
 
 (define (new-binding name value)
-  (binding name value *tick-count*))
+  (binding name value *tick-count* (*current-function*)))
 
 (define (assocm var env)
   (if (null? env)
@@ -126,17 +128,18 @@
 
 (define (report-tick-for lab env vars)
   (when (*counting-distance*)
-    (for ([var (in-list vars)]
-          #:when (symbol? var)
-          [cell (in-value (assocm var env))]
-          #:when cell
-          [labs (in-value (binding-check-labs cell))]
-          #:when (set? labs))
-      (set-binding-use-time! cell *tick-count*)
-      (let ([def (binding-def-time cell)]
-            [check (binding-check-time cell)]
-            [use (binding-use-time cell)]) 
-      (eprintf "~a ~a ~a~%" var (- use def) (- check def))))))
+		(for ([var (in-list vars)]
+					#:when (symbol? var)
+					[cell (in-value (assocm var env))]
+					#:when cell
+					[labs (in-value (binding-check-labs cell))]
+					#:when (set? labs))
+			(set-binding-use-time! cell *tick-count*)
+			(let ([fun (binding-function cell)]
+						[def (binding-def-time cell)]
+						[check (binding-check-time cell)]
+						[use (binding-use-time cell)]) 
+			(eprintf "~a ~a ~a ~a~%" fun var (- use def) (- check def))))))
 
 (define (to-mutable v)
     (cond
@@ -162,7 +165,14 @@
      (eval-letrec bnds bod env)]
     [(list 'lambda args bod ..1)
      (lambda real-args
-       (eval-lambda args bod real-args env))]
+       (define start *tick-count*)
+       (define function-name (gensym))
+       (define return
+         (parameterize ([*current-function* function-name])
+            (eval-lambda args bod real-args env)))
+       (define end *tick-count*)
+       (eprintf "FUNCTION ~a ~a~%" function-name (- end start))
+       return)]
     [(list 'check pred exps ..1)
      (parameterize [(*evaluating-predicate* #t)]
        (when (*counting-checks*)
