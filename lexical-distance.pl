@@ -32,7 +32,7 @@ sub crystal {
 	}
 	$out =~ s/.*--- STATS ---//s;
 
-	while ($out =~ s,<([\w\s]+)>(.*)</\1>,,s) {
+	while ($err =~ s,<([\w\s]+)>(.*)</\1>,,s) {
 		my ($key, $text) = ($1, $2);
 		$text =~ s/\s*\Q<![CDATA[//;
 		$text =~ s/\Q]]>\E\s*//;
@@ -44,13 +44,15 @@ sub crystal {
 sub processMovedChecks {
 	my ($input) = @_;
 
-	my %vars = map {split /\t/} grep /\t/, split /\n/, $input;
+	my %vars = map {my ($k, @v) = split " "; $k => \@v} grep /\t/, split /\n/, $input;
 	for my $k (keys %vars) {
-		delete $vars{$k} unless $vars{$k} =~ /\S/;
+		delete $vars{$k} unless @{$vars{$k}} > 0;
 	}
+
+	my @all = map { my $k = $_; map [$k, split "-"], @{$vars{$k}} } keys %vars;
 	
-	my @values = map { $_->[0] } sort { $b->[1] <=> $a->[1] || $b->[2] <=> $a->[2] } map [ $_, split "-"], values %vars;
-	return join " ", @values;
+	@all = map { join "\t", @$_ } sort { $b->[1] <=> $a->[1] || $b->[2] <=> $a->[2] } @all;
+	return \@all;
 }
 
 sub countLOC {
@@ -60,7 +62,7 @@ sub countLOC {
 	scalar @lines;
 }
 
-our @columns = ("Filename", "LOC", "Dyn", "BP", "Remaining", "Top 5 comp. dist");
+our @columns = ("Filename", "LOC", "Dyn", "BP", "Remaining");
 
 our @sepcolumns = map { ($_, $tex ? \' & ' : \' | ') } @columns;
 
@@ -95,22 +97,20 @@ for my $filename (@ARGV) {
 
 	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
 
-	my $top5 = processMovedChecks($smart->{"Mobility stats"});
-
 	if ($doplot) {
-		open my $plotdata, ">", "$plotdir/$base.data" or die "Cannot open file";
-		for my $tup (split " ", $top5) {
-			print {$plotdata} join "\t", split "-", $tup;
-			print {$plotdata} "\n";
+		my $top5 = processMovedChecks($smart->{"Mobility stats"});
+		open my $plotdata, ">", "$plotdir/$base.lexical" or die "Cannot open file";
+		for my $tup (@$top5) {
+			print {$plotdata} "$tup\n";
 		}
 		close $plotdata;
 	}
 
-	$tt->load([ $base, countLOC($filename), @reduced, $top5 ]);
+	$tt->load([ $base, countLOC($filename), @reduced]);
 }
 
 print $tt;
 
 if ($doplot) {
-	print "Plot data is in $plotdir\n";
+	print STDERR "Plot data is in $plotdir\n";
 }
