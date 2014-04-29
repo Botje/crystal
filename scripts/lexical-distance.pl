@@ -81,6 +81,7 @@ if ($plotdir eq "") {
 	$doplot = 1;
 }
 
+my ($allLoc, $allDyn, $allBp) = (0,0,0);
 for my $filename (@ARGV) {
 	print STDERR "Smart $filename...";
 	my ($smart, $smarttxt) = crystal [@smart, $filename];
@@ -112,10 +113,37 @@ for my $filename (@ARGV) {
 		write_file( "$plotdir/$base.smart", $smarttxt );
 	}
 
-	$tt->load([ $base, countLOC($filename), @reduced]);
+	my $loc = countLOC($filename);
+	$allLoc += $loc;
+	$allDyn += $reduced[0];
+	$allBp  += $reduced[1];
+
+	$tt->load([ $base, $loc, @reduced]);
 }
 
-print $tt;
+$tt->load([ "Total", $allLoc, $allDyn, $allBp, sprintf("%.2f\\%%", 100 * $allBp / $allDyn) ]);
+
+my @title = $tt->title();
+my @body  = $tt->body();
+
+if ($tex) {
+	local $\ = "\n";
+	chomp(@title);
+	chomp(@body);
+	print '\begin{tabular}{|r|c|c|c|l|}%';
+	print '\hline';
+	print for @title;
+	print '\hline';
+	my $final = pop @body;
+	print for @body;
+	print '\hline';
+	print $final;
+	print '\hline';
+	print '\end{tabular}';
+} else { 
+	print $tt;
+}
+
 
 if ($doplot) {
 	print STDERR "Plot data is in $plotdir\n";
