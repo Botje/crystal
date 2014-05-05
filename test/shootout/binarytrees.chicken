@@ -25,7 +25,7 @@
       (do ((d 4 (+ d 2))
            (c 0 0))
         ((> d max-depth))
-        (let ((iterations (* 1 (+ (- max-depth d) min-depth)))) ; chicken-specific: * was arithmetic-shift
+        (let ((iterations (arithmetic-shift 1 (+ (- max-depth d) min-depth))))
           (do ((i 0 (+ i 1)))
             ((>= i iterations))
             (set! c (+ c (check (make i d)) (check (make (- i) d)))))

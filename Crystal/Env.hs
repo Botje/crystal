@@ -24,6 +24,7 @@ main_env = M.fromListWith or [
     ">="            --> makeNumericVarFun ">=" TBool,
     "<="            --> makeNumericVarFun "<=" TBool,
     "abs"           --> TFun [1..1] emptyEffect . require [(TInt,1)] TInt,
+    "arithmetic-shift" --> TFun [1..2] emptyEffect . require [(TInt,1),(TInt,2)] TInt,
     "append"        --> TFun [1..2] emptyEffect . require [(TPair,1), (TPair,2)] TPair,
     "apply"         --> TFun [1..2] emptyEffect . require [] TAny, -- todo function
     "assoc"         --> TFun [1..2] emptyEffect . require [(TPair,2)] (Tor [TPair, TBool]),
