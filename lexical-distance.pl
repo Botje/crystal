@@ -16,10 +16,14 @@ unless (@ARGV) {
 our $tex = 0;
 our $plotdir;
 
-GetOptions("tex!" => \$tex, "no-plot" => sub { $plotdir = ""; }, "o|plotdir=s" => \$plotdir);
+GetOptions(
+	"tex!" => \$tex,
+	"no-plot" => sub { $plotdir = ""; },
+	"o|plotdir=s" => \$plotdir
+);
 
-my @smart = qw(./run.sh --stats);
-my @dumb  = qw(./run.sh --no-mobility --dumb --stats);
+my @smart = qw(./run.sh --stats -@);
+my @dumb  = qw(./run.sh --no-mobility --dumb --stats -@);
 
 sub crystal {
 	my $cmd = shift,
@@ -30,7 +34,6 @@ sub crystal {
 		warn "crystal failed: $err\n";
 		return undef;
 	}
-	$out =~ s/.*--- STATS ---//s;
 
 	while ($err =~ s,<([\w\s]+)>(.*)</\1>,,s) {
 		my ($key, $text) = ($1, $2);
@@ -38,7 +41,7 @@ sub crystal {
 		$text =~ s/\Q]]>\E\s*//;
 		$ret->{$key} = $text;
 	}
-	$ret
+	return ($ret, $out);
 }
 
 sub processMovedChecks {
@@ -80,12 +83,12 @@ if ($plotdir eq "") {
 
 for my $filename (@ARGV) {
 	print STDERR "Smart $filename...";
-	my $smart = crystal [@smart, $filename];
+	my ($smart, $smarttxt) = crystal [@smart, $filename];
 	print STDERR ($smart ? "OK" : "NOT OK"), "\n";
 	next unless defined $smart;
 	print STDERR "Dumb $filename...";
 	next unless defined $smart;
-	my $dumb = crystal [@dumb, $filename];
+	my ($dumb, $dumbtxt) = crystal [@dumb, $filename];
 
 	print STDERR "OK\n";
 
@@ -98,12 +101,15 @@ for my $filename (@ARGV) {
 	my ($base) = $filename =~ m!/([^/]+?)(\.\w+)?$!;
 
 	if ($doplot) {
-		my $top5 = processMovedChecks($smart->{"Mobility stats"});
+		my $moved = processMovedChecks($smart->{"Mobility stats"});
 		open my $plotdata, ">", "$plotdir/$base.lexical" or die "Cannot open file";
-		for my $tup (@$top5) {
+		for my $tup (@$moved) {
 			print {$plotdata} "$tup\n";
 		}
 		close $plotdata;
+
+		write_file( "$plotdir/$base.dumb", $dumbtxt );
+		write_file( "$plotdir/$base.smart", $smarttxt );
 	}
 
 	$tt->load([ $base, countLOC($filename), @reduced]);
