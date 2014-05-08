@@ -211,6 +211,14 @@
       (write-string str)
       str))
 
+(define (our-for-each fun . args)
+  (define fun_ (lambda xs (tick) (apply fun xs)))
+  (apply for-each (cons fun_ args)))
+
+(define (our-map fun . args)
+  (define fun_ (lambda xs (tick) (apply fun xs)))
+  (apply map (cons fun_ args)))
+
 (set! *global-env*
       (list
        (new-binding '= =)
@@ -223,6 +231,7 @@
        (new-binding '>= >=)
        (new-binding '<= <=)
        (new-binding 'abs abs)
+       (new-binding 'arithmetic-shift arithmetic-shift)
        (new-binding 'append append)
        (new-binding 'apply apply)
        (new-binding 'assoc assoc)
@@ -265,7 +274,7 @@
        (new-binding 'even? even?)
        (new-binding 'exact->inexact exact->inexact)
        (new-binding 'expt expt)
-       (new-binding 'for-each for-each)
+       (new-binding 'for-each our-for-each)
        (new-binding 'format our-format)
        (new-binding 'fp= =)
        (new-binding 'fp+ +)
@@ -300,7 +309,7 @@
        (new-binding 'make-string make-string)
        (new-binding 'make-vector make-vector)
        (new-binding 'make-vector make-vector)
-       (new-binding 'map map)
+       (new-binding 'map our-map)
        (new-binding 'max max)
        (new-binding 'member member)
        (new-binding 'memq memq)
