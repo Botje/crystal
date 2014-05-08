@@ -8,10 +8,14 @@
 (define *global-env* '())
 
 (define *evaluating-predicate* (make-parameter #f))
+(define *counting-distance* (make-parameter #t))
 (define *tick-count* 0)
 (define (tick)
   (unless (*evaluating-predicate*)
     (set! *tick-count* (+ *tick-count* 1))))
+
+(define *check-count* 0)
+(define *counting-checks* (make-parameter #f))
 
 (struct binding 
   (name
@@ -105,26 +109,30 @@
     [(list fun var labels ...)
      (when (symbol? var)
        (let ((cell (assocm var env)))
-         (set-binding-check-labs! cell
-                                  (set-union
-                                   (or (binding-check-labs cell) (set))
-                                   (apply set labels)))
-         (set-binding-check-time! cell *tick-count*)))
-     (eval `(,fun ,var) env)]))
+         (if cell 
+           (begin
+             (set-binding-check-labs! cell
+                                      (set-union
+                                       (or (binding-check-labs cell) (set))
+                                       (apply set labels)))
+             (set-binding-check-time! cell *tick-count*)
+             (eval `(,fun ,var) env))
+             (error "Unknown binding: " var))))]))
 
 
 (define (report-tick-for lab env vars)
-  (for ([var (in-list vars)]
-        #:when (symbol? var)
-        [cell (in-value (assocm var env))]
-        #:when cell
-        [labs (in-value (binding-check-labs cell))]
-        #:when (set? labs))
-    (set-binding-use-time! cell *tick-count*)
-    (let ([def (binding-def-time cell)]
-          [check (binding-check-time cell)]
-          [use (binding-use-time cell)]) 
-    (eprintf "~a ~a ~a~%" var (- use def) (- check def)))))
+  (when (*counting-distance*)
+    (for ([var (in-list vars)]
+          #:when (symbol? var)
+          [cell (in-value (assocm var env))]
+          #:when cell
+          [labs (in-value (binding-check-labs cell))]
+          #:when (set? labs))
+      (set-binding-use-time! cell *tick-count*)
+      (let ([def (binding-def-time cell)]
+            [check (binding-check-time cell)]
+            [use (binding-use-time cell)]) 
+      (eprintf "~a ~a ~a~%" var (- use def) (- check def))))))
 
 (define (eval exp env)
   (when (pair? exp) (tick))
@@ -145,6 +153,8 @@
        (eval-lambda args bod real-args env))]
     [(list 'check pred bod)
      (parameterize [(*evaluating-predicate* #t)]
+       (when (*counting-checks*)
+         (set! *check-count* (+ *check-count* 1)))
        (unless (eval-predicate pred env)
          (error "Check failed" pred)))
      (eval bod env)]
@@ -360,6 +370,11 @@
 (provide main)
 (define (main . args)
   (match args
+    [(list-rest "-c" rest)
+     (parameterize [(*counting-distance* #f)
+                    (*counting-checks*   #t)]
+       (apply main rest))
+     (eprintf "~a~%" *check-count*)]
     [(list filename)
      (with-input-from-file filename
        (thunk (start-eval (read))))]
