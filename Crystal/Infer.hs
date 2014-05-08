@@ -69,6 +69,11 @@ generateDumb e = go e
              let l' = LSource l
                  simply = Expr (l' :*: TAny :*: mempty) in
                case expr of
+                 Appl op [var, arg] | Expr l_op (Ref "set!") <- op ->
+                   let op'  = Expr (LSource l_op :*: TAny :*: emptyEffect) (Ref "set!")
+                       Expr l_arg (Ref r) = var
+                       var' = Expr (LSource l_arg :*: TAny :*: emptyEffect) (Ref r)
+                   in Expr (l' :*: TAny :*: emptyEffect) (Appl op' [var', go arg])
                  Appl op args ->
                   let (op_, args_) = (go op, map go args)
                       (Expr (l_r :*: _) (Ref r)) = op_
