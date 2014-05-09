@@ -1,5 +1,6 @@
 #lang racket/base
 
+(require racket/cmdline)
 (require racket/function)
 (require racket/match)
 (require racket/set)
@@ -16,6 +17,7 @@
 
 (define *check-count* 0)
 (define *counting-checks* (make-parameter #f))
+(define *report-timings* (make-parameter #f))
 
 (struct binding 
   (name
@@ -374,17 +376,27 @@
        ))
 
 (define (start-eval exp)
-  (eval exp *global-env*))
+  (call-with-values
+    (thunk (time-apply eval (list exp *global-env*)))
+    (lambda (ret cpu real gc)
+      (when (*counting-checks*)
+        (eprintf "~a\t" *check-count*))
+      (when (*report-timings*)
+        (eprintf "~a\t" cpu))
+      (eprintf "~%"))))
+
+
+(define (read-code l)
+  (if (null? l)
+    (read)
+    (with-input-from-file (car l) (thunk (read)))))
 
 (provide main)
 (define (main . args)
-  (match args
-    [(list-rest "-c" rest)
-     (parameterize [(*counting-distance* #f)
-                    (*counting-checks*   #t)]
-       (apply main rest))
-     (eprintf "~a~%" *check-count*)]
-    [(list filename)
-     (with-input-from-file filename
-       (thunk (start-eval (read))))]
-    ['() (start-eval (read))]))
+  (command-line
+    #:program "eval"
+    #:once-each
+    [("-t" "--timings") "Report timings" (*report-timings* #t)]
+    [("-c" "--count-checks") "Report number of checks made" (*counting-checks* #t) (*counting-distance* #f)]
+    #:args args
+    (start-eval (read-code args))))
