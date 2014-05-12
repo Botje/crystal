@@ -193,6 +193,15 @@
 (define (our-print . args)
   (for-each display args))
 
+(define (our-format print? fmt . args)
+  (set! fmt (regexp-replace* #rx"~,?[0-9][Ff]" fmt "~A"))
+  (set! fmt (regexp-replace* #rx"~[Ff]" fmt "~A"))
+  (set! fmt (regexp-replace* #rx"~[Dd]" fmt "~A"))
+  (define str (apply (curry format fmt) args))
+  (if print?
+      (write-string str)
+      str))
+
 (set! *global-env*
       (list
        (new-binding '= =)
@@ -248,7 +257,7 @@
        (new-binding 'exact->inexact exact->inexact)
        (new-binding 'expt expt)
        (new-binding 'for-each for-each)
-       (new-binding 'format format)
+       (new-binding 'format our-format)
        (new-binding 'fp= =)
        (new-binding 'fp+ +)
        (new-binding 'fp* *)
