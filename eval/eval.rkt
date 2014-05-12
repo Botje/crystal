@@ -131,6 +131,8 @@
   (when (pair? exp) (tick))
   (match exp
     [(list 'quote exp) exp]
+    [(list 'if cond cons)
+     (if (eval cond env) (eval cons env) (void))]
     [(list 'if cond cons alt)
      (if (eval cond env) (eval cons env) (eval alt env))]
     [(list 'let bnds bod ..1)
