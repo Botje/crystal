@@ -332,7 +332,7 @@
        (new-binding 'string-length string-length)
        (new-binding 'string-ref string-ref)
        (new-binding 'string-reverse our-string-reverse)
-       ;(new-binding 'string-set! string-set!)
+       (new-binding 'string-set! string-set!)
        (new-binding 'string-upcase string-upcase)
        ;(new-binding 'string-upcase! string-upcase!)
        (new-binding 'substring substring)
