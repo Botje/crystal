@@ -221,8 +221,13 @@
   (define fun_ (lambda xs (tick) (apply fun xs)))
   (apply map (cons fun_ args)))
 
+(define (our-1+ x) (+ x 1))
+(define (our-1- x) (- x 1))
+
 (set! *global-env*
       (list
+       (new-binding '1+ our-1+)
+       (new-binding '1- our-1-)
        (new-binding '= =)
        (new-binding '+ +)
        (new-binding '* *)

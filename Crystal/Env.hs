@@ -14,6 +14,8 @@ type Env = M.Map Ident TypedLabel
 -- TODO: Support for floats
 main_env :: Env
 main_env = M.fromListWith or [
+    "1+"            --> TFun [1..] emptyEffect . require [(TInt,1)] TInt,
+    "1-"            --> TFun [1..] emptyEffect . require [(TInt,1)] TInt,
     "="             --> makeNumericVarFun "="  TBool,
     "+"             --> makeNumericVarFun "+"  TInt,
     "*"             --> makeNumericVarFun "*"  TInt,
