@@ -235,8 +235,10 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                                             walk bod
                (Lambda ids r bod)     -> do cached <- get
                                             let act = do forM_ allSet $ \id -> modify $ M.insert id (unknownLabel :*: TAny)
-                                                         -- TODO: r is a list
-                                                         forM_ (params ids r) $ \id -> modify $ M.insert id (l :*: TAny)
+                                                         forM_ ids $ \id -> modify $ M.insert id (l :*: TAny)
+                                                         case r of
+                                                              Nothing -> return ()
+                                                              Just x  -> modify $ M.insert x (l :*: TList)
                                                          walk bod
                                             lift $ evalStateT act cached
                (Begin  exps)          -> mapM_ walk exps
