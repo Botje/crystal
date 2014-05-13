@@ -117,8 +117,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Lit (LitBool b))   -> return $ Expr (l' :*: TBool :*: mempty) (Lit (LitBool b))
           (Lit (LitSymbol s)) -> return $ Expr (l' :*: TSymbol :*: mempty) (Lit (LitSymbol s))
           (Lit (LitVoid))     -> return $ Expr (l' :*: TVoid :*: mempty) (Lit (LitVoid))
-          (Lit (LitList els)) | null els  -> return $ Expr (l' :*: TNull :*: mempty) (Lit (LitList els))
-                              | otherwise -> return $ Expr (l' :*: TPair :*: mempty) (Lit (LitList els))
+          (Lit (LitList els)) -> return $ Expr (l' :*: TList :*: mempty) (Lit (LitList els))
           (Ref i) -> do lt <- asks (M.lookup i)
                         case lt of
                           Just (l :*: t :*: ef)
@@ -143,8 +142,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Lambda ids r bod) -> do a_ids <- mapM (const freshTVar) ids
                                    a_r   <- freshTVar
                                    env'  <- asks (extendMany ids $ map (\v -> LVar v :*: TVar v :*: mempty) a_ids)
-                                   -- TODO: make a_r a list
-                                   let env'' = maybe env' (\x -> extend x (LVar a_r :*: TVar a_r :*: mempty) env') r
+                                   let env'' = maybe env' (\x -> extend x (LVar a_r :*: TList :*: mempty) env') r
                                    (e_bod, t_bod, ef_bod) <- local (const env'') (goT bod)
                                    -- TODO: get a_r in here somehow.
                                    let t_lambda = TFun a_ids ef_bod t_bod

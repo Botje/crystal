@@ -356,6 +356,7 @@ reify checks e = appl "check" [reify' checks, e]
                 test TVoid        = "void?"
                 test TVec         = "vector?"
                 test TPair        = "pair?"
+                test TList        = "list?"
                 test TPort        = "port?"
                 test (TFun _ _ _) = "procedure?"
 
