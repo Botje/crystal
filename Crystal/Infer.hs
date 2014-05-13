@@ -88,7 +88,7 @@ generateDumb e = go e
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                  Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
                  LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
-                 Lambda ids bod       -> simply (Lambda ids (go bod))
+                 Lambda ids r bod     -> simply (Lambda ids r (go bod))
                  Begin es             -> simply (Begin $ map go es)
 
 type Infer a = ReaderT Env (State TVar) a
@@ -140,10 +140,15 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                        let t_let = chainWithEffect t_1 forbiddenLabels t_bod
                                        let ef_let = ef_x `mappend` (S.delete nam ef_bod)
                                        return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
-          (Lambda args bod) -> do a_args <- mapM (const freshTVar) args
-                                  (e_bod, t_bod, ef_bod) <- local (extendMany args $ map (\v -> LVar v :*: TVar v :*: mempty) a_args) (goT bod)
-                                  let t_lambda = TFun a_args ef_bod t_bod
-                                  return $ Expr (l' :*: t_lambda :*: emptyEffect) (Lambda args e_bod)
+          (Lambda ids r bod) -> do a_ids <- mapM (const freshTVar) ids
+                                   a_r   <- freshTVar
+                                   env'  <- asks (extendMany ids $ map (\v -> LVar v :*: TVar v :*: mempty) a_ids)
+                                   -- TODO: make a_r a list
+                                   let env'' = maybe env' (\x -> extend x (LVar a_r :*: TVar a_r :*: mempty) env') r
+                                   (e_bod, t_bod, ef_bod) <- local (const env'') (goT bod)
+                                   -- TODO: get a_r in here somehow.
+                                   let t_lambda = TFun a_ids ef_bod t_bod
+                                   return $ Expr (l' :*: t_lambda :*: emptyEffect) (Lambda ids r e_bod)
           (Appl f args)
             | isRefTo "set!" f -> do let [Expr l_v (Ref var), exp] = args
                                      (e_exp, t_exp, ef_exp) <- goT exp
@@ -175,7 +180,8 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
                                in do vars_binds_tl <- forM funs $ \fun ->
                                         do var <- freshTVar
-                                           let (Expr l (Lambda vs _)) = fun
+                                           -- TODO r
+                                           let (Expr l (Lambda vs _ _)) = fun
                                            let n = length vs
                                            let t_fun = TFun [1..n] emptyEffect $ TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]]
                                            let ef_fun = mempty

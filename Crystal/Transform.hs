@@ -40,8 +40,8 @@ toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLab
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
         go e@(Expr l (Lit x)) k = k e
         go e@(Expr l (Ref r)) k = k e
-        go (Expr l (Lambda ids bod)) k = do body_ <- go bod return
-                                            k (Expr l (Lambda ids body_))
+        go (Expr l (Lambda ids r bod)) k = do body_ <- go bod return
+                                              k (Expr l (Lambda ids r body_))
         go (Expr l (Begin [x]) ) k = go x k
         go (Expr l (Begin exps)) k =
           do exps_ <- mapM (flip go return) exps
@@ -69,7 +69,7 @@ toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLab
               float expr k
             Expr l (Begin _) ->
               float expr k
-            Expr l (Lambda _ _) ->
+            Expr l (Lambda _ _ _) ->
               float expr k
             Expr l (Let _ _) ->
               float expr k
@@ -189,10 +189,11 @@ alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.ke
                  Ref  r | isSpecialForm r -> simply $ return $ Ref r
                         | otherwise -> simply $ Ref <$> rename r
                  Appl fun args -> simply $ Appl <$> f fun <*> mapM f args
-                 Lambda ids bod ->
-                   do withNewNames ids $ do
+                 Lambda ids r bod ->
+                   do withNewNames (params ids r) $ do
                         ids' <- mapM rename ids
-                        simply $ Lambda ids' <$> f bod
+                        r' <- maybe (return Nothing) (\x -> Just `fmap` rename x) r
+                        simply $ Lambda ids' r' <$> f bod
                  Begin exps -> simply $ Begin <$> mapM f exps
                  If cond cons alt -> simply $ If <$> f cond <*> f cons <*> f alt
                  Let bnds bod ->

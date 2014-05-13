@@ -33,7 +33,7 @@ data InExpr e = Lit    LitVal
               | If     e e e
               | Let    [(Ident, e)] e
               | LetRec [(Ident, e)] e
-              | Lambda [Ident] e
+              | Lambda [Ident] (Maybe Ident) e
               | Begin  [e]
                 deriving (Show, Read, Ord, Eq, Data, Typeable)
 
@@ -42,7 +42,7 @@ freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
   where fv (Expr _ (Lit _))            = return ()
         fv (Expr _ (Ref r))            = check r
         fv (Expr _ (Appl f args))      = fv f >> forM_ args fv
-        fv (Expr _ (Lambda ids bod))   = localWith ids $ fv bod
+        fv (Expr _ (Lambda ids r bod)) = localWith (ids ++ maybe [] return r) $ fv bod
         fv (Expr _ (Begin exp))        = forM_ exp fv
         fv (Expr _ (If cond cons alt)) = mapM_ fv [cond, cons, alt]
         fv (Expr _ (Let bnds bod))     = do forM_ bnds (fv . snd)
@@ -61,3 +61,6 @@ ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)
 isRefTo :: Ident -> Expr a -> Bool
 isRefTo id (Expr _ (Ref r)) = id == r
 isRefTo id       _          = False
+
+params :: [Ident] -> Maybe Ident -> [Ident]
+params ids r = ids ++ maybe [] return r

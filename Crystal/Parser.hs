@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.Identity
 import Data.Char
 import Data.List
+import Data.Maybe
 import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.String
@@ -76,10 +77,16 @@ ensureNoDuplicateVars vars =
        []   -> return ()
        dups -> fail $ "Multiple bindings of the same variable(s): " ++ show dups
 
-lambda = do vars <- parens (many ident)
+parameters =     do { i <- ident; return ([], Just i) }
+             <|> parens (do vars <- many ident
+                            rest <- optionMaybe (symbol "." >> ident)
+                            when (null vars && isJust rest) $ fail $ "Malformed parameter bindings"
+                            return (vars, rest))
+
+lambda = do (fixed, rest) <- parameters
             body <- letBody
-            ensureNoDuplicateVars vars
-            makeExpr $ Lambda vars body
+            ensureNoDuplicateVars (fixed ++ maybe [] return rest)
+            makeExpr $ Lambda fixed rest body
 
 makeVoid = makeExpr $ Lit (LitVoid)
 
@@ -128,7 +135,7 @@ namedLet = do name <- ident
               bnd <- bindings
               fnBody <- exprs
               let (vars, vals) = unzip bnd
-              fun <- makeExpr $ Lambda vars fnBody
+              fun <- makeExpr $ Lambda vars Nothing fnBody
               body <- makeAppl name vals
               makeExpr $ LetRec [(name, fun)] body
               <?> "named let"
@@ -160,7 +167,7 @@ do' = do iterspecs <- parens (many iterspec)
          initCall <- makeAppl name vals
          fnBody' <- makeExpr $ Begin [fnBody, recCall]
          fnBody'' <- makeExpr $ If check result fnBody'
-         fun <- makeExpr $ Lambda vars fnBody''
+         fun <- makeExpr $ Lambda vars Nothing fnBody''
          makeExpr $ LetRec [(name, fun)] initCall
 
 iterspec = do es <- parens (many expr)
@@ -185,7 +192,7 @@ exprs = many1 expr >>= \es ->
   <?> "function body"
 
 decl = do try (symbol "(" >> reserved "define")
-          ret <- fundecl <|> vardecl
+          ret <- fundecl
           symbol ")"
           return ret
        <?> "declaration"
@@ -198,16 +205,13 @@ letBody = do
        _  -> makeExpr $ LetRec decls body
 
 fundecl = do
-  name:args <- parens (many1 ident)
-  body <- makeExpr . Lambda args =<< letBody
-  return (name, body)
-  <?> "function declaration"
-
-vardecl = do
-  name <- ident
-  val <- expr
-  return $ (name, val)
-  <?> "variable declaration"
+  (fixed, rest) <- parameters
+  case (fixed, rest) of
+       ([], Just name) -> do val <- expr
+                             return (name, val)
+       ((nam:args), r) -> do body <- makeExpr . Lambda args r =<< letBody
+                             return (nam, body)
+  <?> "declaration"
 
 program :: Parsec String Label (Expr Label)
 program = do whiteSpace 
@@ -227,10 +231,10 @@ sexpDef = T.LanguageDef {
   , T.commentEnd   = ""
   , T.commentLine  = ";"
   , T.nestedComments = False
-  , T.identStart   = satisfy (\x -> not (isSpace x || isDigit x || x `elem` ";()"))
-  , T.identLetter  = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
-  , T.opStart      = satisfy (\x -> not (isSpace x || isDigit x || x `elem` ";()"))
-  , T.opLetter     = satisfy (\x -> not (isSpace x || x `elem` "$;()"))
+  , T.identStart   = satisfy (\x -> not (isSpace x || isDigit x || x `elem` ";().#"))
+  , T.identLetter  = satisfy (\x -> not (isSpace x || x `elem` "$;().#"))
+  , T.opStart      = satisfy (\x -> not (isSpace x || isDigit x || x `elem` ";().#"))
+  , T.opLetter     = satisfy (\x -> not (isSpace x || x `elem` "$;().#"))
   , T.reservedNames = reservedNames 
   , T.reservedOpNames = reservedNames
   , T.caseSensitive = False

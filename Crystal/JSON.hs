@@ -41,6 +41,8 @@ instance ToJSON a => ToJSON (InExpr (Expr a)) where
   toJSON (Let [(id, e)] bod)  = obj "LetExpression" [ "kw" .= str "let", "head" .= toJSON [ object [ "id" .= id, "init" .= toJSON e ] ], "body" .= toJSON bod ]
   toJSON (LetRec bnds bod)    = obj "LetExpression" [ "kw" .= str "letrec", "head" .= toJSON (map f bnds), "body" .= toJSON bod ]
     where f (id, e) = object [ "id" .= id, "init" .= toJSON e ]
-  toJSON (Lambda ids bod)     = obj "FunctionExpression" [ "params" .= toJSON ids, "body" .= toJSON bod ]
+  toJSON (Lambda ids r bod)   = obj "FunctionExpression" $ addR r [ "params" .= toJSON ids, "body" .= toJSON bod ]
+    where addR Nothing  l = l
+          addR (Just x) l = l ++ [ "rest" .= str x ]
   toJSON (Begin es)           = obj "SequenceExpression" [ "expressions" .= toJSON (map toJSON es) ]
   toJSON (Appl f args)        = obj "CallExpression" [ "callee" .= toJSON f, "arguments" .= toJSON (map toJSON args) ]

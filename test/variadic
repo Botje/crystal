@@ -1,0 +1,8 @@
+(define eat (lambda a (length a)))
+(define more (lambda (x . rest) (+ x (length rest))))
+(define vegetables (lambda (x y . rest) (+ x y (length rest))))
+
+(list
+	(eat 1 2 3)
+	(more 1 2 3)
+	(vegetables 1 2 3 4 5))

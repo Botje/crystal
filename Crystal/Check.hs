@@ -76,7 +76,7 @@ introduceChecks expr = return $ go expr
                If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
                LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
-               Lambda ids bod       -> simply (Lambda ids (go bod))
+               Lambda ids r bod     -> simply (Lambda ids r (go bod))
                Begin es             -> simply (Begin $ map go es)
 
 typeToChecks :: (TLabel -> Maybe (Either LitVal Ident)) -> Type -> Check
@@ -128,7 +128,7 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                Ref r                -> simple
                If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: ef) e
                LetRec bnds bod      -> simple
-               Lambda ids bod       -> simple
+               Lambda ids r bod     -> simple
                Begin exps           -> 
                  Expr (l :*: firstCheck :*: ef) $ Begin (exp' : exps')
                    where firstCheck  = exp ^. annCheck
@@ -233,9 +233,10 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                (LetRec bnds bod)      -> do mapM_ walk $ map snd bnds
                                             forM_ (map fst bnds) $ \id -> modify $ M.insert id (l :*: TAny)
                                             walk bod
-               (Lambda ids bod)       -> do cached <- get
+               (Lambda ids r bod)     -> do cached <- get
                                             let act = do forM_ allSet $ \id -> modify $ M.insert id (unknownLabel :*: TAny)
-                                                         forM_ ids $ \id -> modify $ M.insert id (l :*: TAny)
+                                                         -- TODO: r is a list
+                                                         forM_ (params ids r) $ \id -> modify $ M.insert id (l :*: TAny)
                                                          walk bod
                                             lift $ evalStateT act cached
                (Begin  exps)          -> mapM_ walk exps
@@ -287,9 +288,9 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
                  Let [(id, e)] bod    -> descend e >> local (over bindDepths (M.insert id depth)) (descend bod)
                  LetRec bnds bod      -> local (over bindDepths (M.union (M.fromList [ (id, depth) | (id, _) <- bnds ]))) $
                                           mapM_ (descend.snd) bnds >> descend bod
-                 Lambda ids bod       ->
-                   local (over bindDepths (M.union (M.fromList [ (id, depth) | id <- ids ]))) $
-                     censor (makeRelative ids) (descend bod)
+                 Lambda ids r bod     ->
+                   local (over bindDepths (M.union (M.fromList [ (id, depth) | id <- params ids r ]))) $
+                     censor (makeRelative (params ids r)) (descend bod)
                  Begin exps           -> zipWithM_ go [depth+1..] exps
           where descend = go (depth + 1)
                 withChecks body = local (over checkDepths (M.unionWith (M.unionWith min) newState)) $
@@ -336,7 +337,7 @@ reifyChecks = return . go
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
                  Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
                  LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
-                 Lambda ids bod       -> simply (Lambda ids (go bod))
+                 Lambda ids r bod     -> simply (Lambda ids r (go bod))
                  Begin es             -> simply (Begin $ map go es)
 
 reify :: Check -> Expr TLabel -> Expr TLabel
