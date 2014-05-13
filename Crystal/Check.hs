@@ -202,7 +202,7 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
         updateCachedTypes l check = update check
           where update Cnone = return ()
                 update (Cand cs) = mapM_ update cs
-                update (Cor cs) = sequence_ [ modify (M.insert id (unknownLabel :*: TAny)) | c <- cs, Check _ typ (Right id) <- universe c ]
+                update (Cor cs) = return ()
                 update (Check ls typ (Left lv)) = return ()
                 update (Check ls typ (Right id)) = modify (M.insert id (l :*: typ))
 
