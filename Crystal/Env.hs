@@ -1,19 +1,19 @@
 module Crystal.Env where
 
+import Control.Monad
 import qualified Data.Map as M
+import Data.Monoid
 
 import Crystal.AST
 import Crystal.Tuple
 import Crystal.Type
-
-import Data.Monoid
 
 type Env = M.Map Ident TypedLabel
 
 -- TODO: Factor in effects of functions passed to higher-order primitives
 -- TODO: Support for floats
 main_env :: Env
-main_env = M.fromListWith or [
+main_env = carLikes `M.union` M.fromListWith or [
     "1+"            --> fun [1..1] . require [(TInt,1)] TInt,
     "1-"            --> fun [1..1] . require [(TInt,1)] TInt,
     "="             --> makeNumericVarFun "="  TBool,
@@ -36,12 +36,8 @@ main_env = M.fromListWith or [
     "assv"          --> fun [1..2] . require [(TList,2)] (Tor [TPair, TBool]),
     "atan"          --> fun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "boolean?"      --> fun [1..1] . require [] TBool,
-    "car"           --> fun [1..1] . require [(TPair,1)] TAny,
-    "car"           --> fun [1..1] . require [(TList,1)] TAny,
     "call-with-input-file" --> fun [1..2] . require [(TString,1),(fun [3] TAny, 2)] TAny,
     "call-with-output-file" --> fun [1..2] . require [(TString,1),(fun [3] TAny, 2)] TAny,
-    "cdr"           --> fun [1..1] . require [(TPair,1)] TAny,
-    "cdr"           --> fun [1..1] . require [(TList,1)] TList,
     "ceiling"       --> fun [1..1] . require [(TInt,1)] TInt,
     "char?"         --> fun [1..1] . require [] TBool,
     "char->integer" --> fun [1..1] . require [(TChar, 1)] TInt,
@@ -216,6 +212,7 @@ main_env = M.fromListWith or [
           fun args typ = TFun args emptyEffect typ
           (LPrim nam :*: fun1 :*: ef1) `or` (LPrim _ :*: fun2 :*: ef2) = LPrim nam :*: Tor [fun1, fun2] :*: ef1 `mappend` ef2
 
-
+carLikes = M.fromList [ (id, LPrim id :*: carLikeType id :*: emptyEffect) | n <- [1..4], mid <- replicateM n "ad", let id = "c" ++ mid ++ "r" ]
+  where carLikeType id = TFun [1] emptyEffect $ TIf (LPrim id, LVar 1) TPair (TVar 1) TAny
 extend :: Ident -> TypedLabel -> Env -> Env
 extend = M.insert
