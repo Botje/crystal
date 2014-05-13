@@ -38,6 +38,7 @@ prettyL _ (LitBool True) = text "#t"
 prettyL _ (LitBool False) = text "#f"
 prettyL _ (LitVoid) = text "(void)"
 prettyL l (LitList els) = quoted l <> parens (hsep $ map (prettyL True) els)
+prettyL l (LitPair x y) = quoted l <> parens (prettyL True x <+> text "." <+> prettyL True y)
 
 appl (x:xs) = parens (x <+> sep xs)
 quoted l = if l then empty else text "'"

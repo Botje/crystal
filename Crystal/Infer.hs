@@ -118,6 +118,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Lit (LitSymbol s)) -> return $ Expr (l' :*: TSymbol :*: mempty) (Lit (LitSymbol s))
           (Lit (LitVoid))     -> return $ Expr (l' :*: TVoid :*: mempty) (Lit (LitVoid))
           (Lit (LitList els)) -> return $ Expr (l' :*: TList :*: mempty) (Lit (LitList els))
+          (Lit (LitPair x y)) -> return $ Expr (l' :*: TPair :*: mempty) (Lit (LitPair x y))
           (Ref i) -> do lt <- asks (M.lookup i)
                         case lt of
                           Just (l :*: t :*: ef)

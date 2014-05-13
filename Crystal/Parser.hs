@@ -36,7 +36,13 @@ hashChar =     (char 'f' >> whiteSpace >> return (LitBool False))
 
 quote =     literal
         <|> LitSymbol `liftM` (ident <|> reservedIdent)
-        <|> LitList `liftM` parens (many quote)
+        <|> parens (do vals <- many1 quote
+                       rest <- optionMaybe (symbol "." >> quote)
+                       case rest of
+                            Nothing -> return $ LitList vals
+                            Just (LitList l) -> return $ LitList (vals ++ l)
+                            Just val -> return $ foldr LitPair val vals
+                    <|> return (LitList []))
 
 reservedIdent = choice $ map (\n -> reserved n >> return n) reservedNames
 
