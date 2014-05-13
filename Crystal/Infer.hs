@@ -144,8 +144,13 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                    env'  <- asks (extendMany ids $ map (\v -> LVar v :*: TVar v :*: mempty) a_ids)
                                    let env'' = maybe env' (\x -> extend x (LVar a_r :*: TList :*: mempty) env') r
                                    (e_bod, t_bod, ef_bod) <- local (const env'') (goT bod)
-                                   -- TODO: get a_r in here somehow.
-                                   let t_lambda = TFun a_ids ef_bod t_bod
+                                   let t_lambda = case r of
+                                         Nothing -> TFun a_ids ef_bod t_bod
+                                         Just _  ->
+                                           -- TODO: checks on a_r will crash.
+                                           let f tls cause | length tls < length ids = TError
+                                               f tls cause = apply (TFun a_ids ef_bod t_bod) (take (length a_ids) tls)
+                                           in TVarFun $ VarFun ("lambda-" ++ show l) l' f
                                    return $ Expr (l' :*: t_lambda :*: emptyEffect) (Lambda ids r e_bod)
           (Appl f args)
             | isRefTo "set!" f -> do let [Expr l_v (Ref var), exp] = args
