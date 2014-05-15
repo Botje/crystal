@@ -78,8 +78,8 @@ solveMutual (Mutual funs) = Mutual $ map solve' funs
   where unbraidedFuns = M.fromList $ map (second (unbraid . getTFunBody)) funs
         funEffects    = M.fromList $ map (second getTFunEffect) funs
         solve' :: (Int, T) -> (Int, T)
-        solve' (i, fun@(TFun args _ body)) = (i, finalType)
-          where (finalPaths, finalEffect) = evalState (runWriterT $ loop $ S.singleton $ TAppl (TVar i) (map var args)) S.empty
+        solve' (i, fun@(TFun args _ body)) = {- trace (show i ++ " " ++ show finalType) -} (i, finalType)
+          where (finalPaths, finalEffect) = evalState (runWriterT $ loop 1 $ S.singleton $ TAppl (TVar i) (map var args)) S.empty
                 finalType = braid args finalEffect finalPaths
                 var l = LVar l :*: TVar l
                 walk thread = do modify (S.insert thread)
@@ -96,14 +96,17 @@ solveMutual (Mutual funs) = Mutual $ map solve' funs
                                         do tell ef
                                            let body' = subst (zip formals $ map (^. _2) args) body
                                            return $ S.map (canon . prefix) $ unbraid body'
-                loop :: S.Set T -> WriterT Effect (State (S.Set T)) (S.Set T)
-                loop s = do seen <- get
-                            let (applies, concrete) = S.partition (isApply . head . typeLeafs) s
-                            let (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
-                            if S.null todoApplies
-                               then return $ concrete
-                               else do expanded <- S.unions <$> mapM walk (S.elems todoApplies)
-                                       loop (expanded `S.union` concrete)
+                loop_threshold = 50
+                loop :: Int -> S.Set T -> WriterT Effect (State (S.Set T)) (S.Set T)
+                loop i s = do seen <- get
+                              let (applies, concrete) = S.partition (isApply . head . typeLeafs) s
+                              let (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
+                              if i > loop_threshold
+                                 then return $ S.singleton TAny
+                                 else if S.null todoApplies
+                                         then return $ concrete
+                                         else do expanded <- S.unions <$> mapM walk (S.elems todoApplies)
+                                                 loop (i + 1) (expanded `S.union` concrete)
 
 subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
