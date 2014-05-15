@@ -78,18 +78,24 @@ solveMutual (Mutual funs) = Mutual $ map solve' funs
   where unbraidedFuns = M.fromList $ map (second (unbraid . getTFunBody)) funs
         funEffects    = M.fromList $ map (second getTFunEffect) funs
         solve' :: (Int, T) -> (Int, T)
-        solve' (id, fun@(TFun args _ body)) = (id, finalType)
-          where (finalPaths, finalEffect) = evalState (runWriterT $ loop $ S.singleton $ TAppl (TVar id) (map var args)) S.empty
+        solve' (i, fun@(TFun args _ body)) = (i, finalType)
+          where (finalPaths, finalEffect) = evalState (runWriterT $ loop $ S.singleton $ TAppl (TVar i) (map var args)) S.empty
                 finalType = braid args finalEffect finalPaths
                 var l = LVar l :*: TVar l
                 walk thread = do modify (S.insert thread)
-                                 let (prefix, TAppl (TVar id) args) = splitThread thread
-                                 case M.lookup id funEffects of
-                                      Nothing -> return () -- should not happen
-                                      Just ef -> tell ef
-                                 case M.lookup id unbraidedFuns of
-                                      Nothing      -> return $ S.singleton thread
-                                      Just threads -> return $ S.map (canon . prefix . subst (zip [1..] (map (^. _2) args))) threads
+                                 let (prefix, tip) = splitThread thread
+                                 case tip of 
+                                      TAppl (TVar v) args ->
+                                        do tell $ maybe emptyEffect id (M.lookup v funEffects)
+                                           case M.lookup v unbraidedFuns of
+                                                Nothing      -> return $ S.singleton thread
+                                                Just threads ->
+                                                  let threads' = S.map (subst (zip [1..] (map (^. _2) args))) threads
+                                                  in return $ S.map (canon . prefix) threads'
+                                      TAppl (TFun formals ef body) args ->
+                                        do tell ef
+                                           let body' = subst (zip formals $ map (^. _2) args) body
+                                           return $ S.map (canon . prefix) $ unbraid body'
                 loop :: S.Set T -> WriterT Effect (State (S.Set T)) (S.Set T)
                 loop s = do seen <- get
                             let (applies, concrete) = S.partition (isApply . head . typeLeafs) s
