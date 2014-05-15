@@ -50,7 +50,8 @@ maybeDumpTypes expr =
      return expr
 
 simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
-simplifyLabels = return . transformBi simplify
+simplifyLabels = return . transform f
+  where f (Expr (l :*: t :*: ef) ie) = Expr (l :*: simplify t :*: ef) ie
 
 dumpTypes :: Expr TypedLabel -> [(Ident, Type)]
 dumpTypes (Expr _ (Let bnds bod))    = over (mapped._2) getType bnds ++ dumpTypes bod
@@ -247,7 +248,7 @@ expand typ = typ
 
 chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
 chainWithEffect t forbidden t_c = go t
-  where t_c' = transform strip t_c
+  where t_c' = simplify $ transform strip t_c
         go (Tor ts) = Tor $ map go ts
         go (TIf (blame, cause) t_t t_1 t) 
           = TIf (blame, cause) t_t t_1 $ go t
