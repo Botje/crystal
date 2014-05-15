@@ -61,8 +61,8 @@ canon t = descend [] t
           
 
 splitThread :: T -> (T -> T, T)
-splitThread (TIf ls t1 t2 t) = (TIf ls t1 t2 . prefix', apply)
-  where (prefix', apply) = splitThread t
+splitThread (TIf ls t1 t2 t) = (TIf ls t1 t2 . prefix', tip)
+  where (prefix', tip) = splitThread t
 splitThread t = (id, t)
 
 data Mutual = Mutual [(TVar, T)] deriving (Data, Typeable, Eq, Show)
@@ -104,9 +104,6 @@ solveMutual (Mutual funs) = Mutual $ map solve' funs
                                then return $ concrete
                                else do expanded <- S.unions <$> mapM walk (S.elems todoApplies)
                                        loop (expanded `S.union` concrete)
-
-apply :: [(Int, T)] -> T -> T
-apply m fun@(TFun _ _ body) = subst m body 
 
 subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
