@@ -97,13 +97,18 @@ concreteTypes :: [Type]
 concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TList, TNull, TChar, TPort]
 
 simplify :: Type -> Type
-simplify (Tor ts) | length ts' == 1 = head ts'
-                  | otherwise       = Tor ts'
+simplify tor@(Tor ts) | length ts' == 1 = head ts'
+                      | ts == ts'       = tor -- preserve sharing
+                      | otherwise       = Tor ts'
   where ts' = nub $ concatMap (expandOr . simplify) ts
-simplify (TFun args ef body) = TFun args ef (simplify body)
-simplify tif@(TIf l t_1 t_2 t) | trivialIf tif = t'
-                               | otherwise     = TIf l t_1' t_2' t'
+simplify tf@(TFun args ef body) | body == simplified = tf -- preserve sharing
+                                | otherwise          = TFun args ef simplified
+  where simplified = simplify body
+simplify tif@(TIf l t_1 t_2 t) | trivialIf tif     = t'
+                               | tif == simplified = tif -- preserve sharing
+                               | otherwise         = simplified
   where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
+        simplified = TIf l t_1 t_2' t'
 simplify t = t
 
 expandOr :: Type -> [Type]
