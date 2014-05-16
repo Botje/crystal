@@ -176,7 +176,7 @@ star fv names = if names == names' then names' else star fv names'
   where names' = names `S.union` S.unions [ s | n <- S.elems names, Just s <- return $ M.lookup n fv ]
 
 alphaRename expr@(Expr start _) = return $ fst $ evalRWS (f expr) startMap (M.keysSet startMap)
-  where startMap = M.mapWithKey (\k _ -> k) main_env
+  where startMap = M.fromList [("check","check"), ("@","@")] `M.union` M.mapWithKey (\k _ -> k) main_env
         f :: Expr Label -> RWS (M.Map Ident Ident) [Int] (S.Set Ident) (Expr Label)
         f (Expr l e) =
           let simply ie = Expr l <$> ie
