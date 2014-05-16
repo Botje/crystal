@@ -38,23 +38,22 @@ data InExpr e = Lit    LitVal
               | Begin  [e]
                 deriving (Show, Read, Ord, Eq, Data, Typeable)
 
-freeVars :: Expr a -> [Ident]
-freeVars ast = nub $ snd $ execRWS (fv ast) [] ()
+freeVars :: Expr a -> S.Set Ident
+freeVars ast = snd $ execRWS (fv ast) S.empty ()
   where fv (Expr _ (Lit _))            = return ()
-        fv (Expr _ (Ref r))            = check r
+        fv (Expr _ (Ref r))            = do c <- asks $ S.member r
+                                            when (not c) $ tell (S.singleton r)
         fv (Expr _ (Appl f args))      = fv f >> forM_ args fv
-        fv (Expr _ (Lambda ids r bod)) = localWith (ids ++ maybe [] return r) $ fv bod
+        fv (Expr _ (Lambda ids r bod)) = localWith (S.fromList $ params ids r) $ fv bod
         fv (Expr _ (Begin exp))        = forM_ exp fv
         fv (Expr _ (If cond cons alt)) = mapM_ fv [cond, cons, alt]
         fv (Expr _ (Let bnds bod))     = do forM_ bnds (fv . snd)
-                                            localWith (map fst bnds) $ fv bod
-        fv (Expr _ (LetRec bnds bod))  = do forM_ bnds (fv . snd)
-                                            localWith (map fst bnds) $ fv bod
+                                            localWith (S.fromList $ map fst bnds) $ fv bod
+        fv (Expr _ (LetRec bnds bod))  = localWith (S.fromList $ map fst bnds) $
+                                          do forM_ bnds (fv . snd)
+                                             fv bod
 
-        localWith ds = local (union ds)
-        check r = do c <- asks $ elem r
-                     let g = all (=='*') [head r, last r] -- *global* variables are ignored
-                     when (not c && not g) $ tell [r]
+        localWith ds = local (S.union ds)
 
 ann :: Simple Lens (Expr a) a
 ann op (Expr a e) = fmap (\a' -> Expr a' e) (op a)

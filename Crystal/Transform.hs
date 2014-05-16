@@ -155,7 +155,7 @@ splitLetRecs expr@(Expr start _) = return $ evalState (transformBiM f expr >>= u
   where f :: Expr Label -> State Label (Expr Label)
         f (Expr _ (LetRec bnds bod)) = float fv names
           where names = S.fromList $ map fst bnds
-                fv = M.fromList $ map (second (\e -> names `S.intersection` S.fromList (freeVars e))) bnds
+                fv = M.fromList $ map (second (\e -> names `S.intersection` freeVars e)) bnds
                 float :: M.Map Ident Idents -> Idents -> State Label (Expr Label)
                 float fv names | S.null names = return bod
                                | otherwise = do lab <- nextSeq
