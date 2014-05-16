@@ -17,15 +17,23 @@ import qualified Data.Set as S
 import Data.Generics.Biplate
 
 import Crystal.AST
+import Crystal.Config
 import Crystal.Env
+import Crystal.JSON
 import Crystal.Misc
 import Crystal.Pretty
 import Crystal.Seq
 
 transformC :: Expr Label -> Step (Expr Label)
-transformC = denestLet <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
+transformC = maybeDumpTree <=< denestLet <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
 
-alphaRename, splitLetRecs, flattenLets, expandMacros, toANF, denestLet :: Expr Label -> Step (Expr Label)
+alphaRename, splitLetRecs, flattenLets, expandMacros, toANF, denestLet, maybeDumpTree :: Expr Label -> Step (Expr Label)
+
+maybeDumpTree expr =
+  do dump <- asks (^.cfgDumpTree)
+     when dump $ do
+       report "transform" $ encode expr
+     return expr
 
 denestLet expr = return $ rewriteBi denest expr
   where denest :: Expr Label -> Maybe (Expr Label)
