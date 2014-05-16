@@ -1,4 +1,4 @@
-{-#LANGUAGE TemplateHaskell #-}
+{-#LANGUAGE TemplateHaskell,OverloadedStrings #-}
 module Crystal.Misc where
 
 import Control.Lens
@@ -24,7 +24,14 @@ spyP :: Show a => Expr a -> Step (Expr a)
 spyP expr = trace (pretty expr) $ return expr
 
 report :: String -> Text -> Step ()
-report header contents = tell [(header,contents)]
+report header contents =
+  do imm <- asks (^.cfgDumpImmediately)
+     if imm
+       then report_result header contents
+       else tell [(header,contents)]
+
+report_result header cts =
+  Data.Text.Format.hprint stderr "<{}>\n<![CDATA[{}]]>\n</{}>\n" (header, cts, header)
 
 type Depth = Int
 data MobilityInfo = MI {

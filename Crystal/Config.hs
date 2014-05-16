@@ -15,6 +15,7 @@ data Config =
            _cfgMobilityStats :: Bool,
            _cfgDumpTypes :: Bool,
            _cfgDumpTree  :: Bool,
+           _cfgDumpImmediately :: Bool,
            _cfgAnnotateLabels :: Bool
          } deriving (Show, Eq, Data, Typeable)
 
@@ -30,6 +31,8 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                                               True  &= help "Dump top-level types" &= name "types" &= explicit ]
                      , _cfgDumpTree = enum [ False &= ignore,
                                              True  &= help "Dump results of intermediate steps" &= name "d" &= explicit ]
+                     , _cfgDumpImmediately = enum [ False &= ignore,
+                                             True  &= help "Dump results immediately" &= name "i" &= explicit ]
                      , _cfgAnnotateLabels = enum [ False &= ignore,
                                                    True &= help "Annotate expressions with labels" &= name "@" &= explicit ]
                      }

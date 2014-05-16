@@ -5,7 +5,6 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Writer
-import Data.Text.Format
 import System.Environment
 import System.Exit
 import System.IO
@@ -37,8 +36,7 @@ process config fname cts =
                        putStrLn $ prettyD $ ast'
                        when (not (null results)) $ do
                          hPutStr stderr "<extra-information>\n"
-                         forM_ results $ \(header,cts) ->
-                           Data.Text.Format.hprint stderr "<{}>\n<![CDATA[{}]]>\n</{}>\n" (header, cts, header)
+                         forM_ results $ uncurry report_result
                          hPutStr stderr "\n</extra-information>\n"
 
 main = do config <- cmdArgs defaultArgs
