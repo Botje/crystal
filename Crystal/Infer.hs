@@ -29,7 +29,7 @@ import Crystal.Tuple
 import Crystal.Type
 
 infer :: Expr Label -> Step (Expr TypedLabel)
-infer = maybeDumpTree <=< maybeDumpTypes <=< simplifyLabels <=< generate
+infer = maybeDumpTree <=< maybeDumpTypes <=< generate
 
 maybeDumpTree :: Expr TypedLabel -> Step (Expr TypedLabel)
 maybeDumpTree expr =
@@ -48,10 +48,6 @@ maybeDumpTypes expr =
        let types = [ show k ++ " ==> " ++ show v | (k,v) <- sort $ dumpTypes expr ]
        report "Types dump" $ T.pack $ unlines types
      return expr
-
-simplifyLabels :: Expr TypedLabel -> Step (Expr TypedLabel)
-simplifyLabels = return . transform f
-  where f (Expr (l :*: t :*: ef) ie) = Expr (l :*: simplify t :*: ef) ie
 
 dumpTypes :: Expr TypedLabel -> [(Ident, Type)]
 dumpTypes (Expr _ (Let bnds bod))    = over (mapped._2) getType bnds ++ dumpTypes bod
@@ -124,21 +120,21 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                         case lt of
                           Just (l :*: t :*: ef)
                             | i `varInEffect` allSet -> return $ Expr (l :*: TAny :*: emptyEffect) (Ref i)
-                            | otherwise              -> return $ Expr (l :*: t    :*: ef) (Ref i)
+                            | otherwise              -> return $ Expr (l :*: simplify t :*: ef) (Ref i)
                           Nothing -> error ("Unbound variable " ++ show i)
           (If cond cons alt) -> do (e_0, t_0, ef_0) <- goT cond
                                    (e_1, t_1, ef_1) <- goT cons
                                    (e_2, t_2, ef_2) <- goT alt
-                                   let t_if = Tor [t_1, t_2]
+                                   let t_if = simplify $ Tor [t_1, t_2]
                                    let ef_if = ef_1 `mappend` ef_2
                                    return $ Expr (l' :*: t_if :*: ef_if) (If e_0 e_1 e_2)
           -- TODO: Type rule for this is wrong in thesis!
           (Let [(nam, exp)] bod) -> do (e_x, t_1, ef_x) <- goT exp
-                                       let t_l = leaves t_1
+                                       let t_l = simplify $ leaves t_1
                                        let bod_tl = getLabel e_x :*: t_l :*: mempty
                                        (e_bod, t_bod, ef_bod) <- local (extend nam bod_tl) (goT bod)
                                        forbiddenLabels <- local (extend nam bod_tl) $ effectToLabels ef_x
-                                       let t_let = chainWithEffect t_1 forbiddenLabels t_bod
+                                       let t_let = simplify $ chainWithEffect t_1 forbiddenLabels t_bod
                                        let ef_let = ef_x `mappend` (S.delete nam ef_bod)
                                        return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
           (Lambda ids r bod) -> do a_ids <- mapM (const freshTVar) ids
@@ -170,16 +166,16 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                               case M.lookup fun main_env of -- TODO: why main_env?
                                    Just (LPrim nam :*: typ :*: _) ->
                                      -- TODO: Extract effect from function (see FunEffects)
-                                     do let t_apply = instantiatePrim nam l' (applyPrim t_f tl_args)
+                                     do let t_apply = simplify $ instantiatePrim nam l' (applyPrim t_f tl_args)
                                         return $ Expr (l' :*: t_apply :*: mempty) (Appl e_f e_args)
                                    _ ->
-                                     do let t_apply = TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
+                                     do let t_apply = simplify $ TIf (l', getLabel e_f) (TFun tvars emptyEffect TAny) t_f (apply t_f tl_args)
                                         let ef_apply = maybe allSet id $ funEffects t_f
                                         return $ Expr (l' :*: t_apply :*: ef_apply) (Appl e_f e_args)
           -- Chain types of expressions together, removing checks on variables that are set beforehand
           (Begin exps) -> do exps_ <- mapM go exps 
                              typesEffects <- mapM (\e -> liftM2 (,) (return $ getType e) (effectToLabels $ getEffect e)) exps_
-                             let t_begin = foldr (\(t1, labs) t -> chainWithEffect t1 labs t) (fst $ last typesEffects) (init typesEffects)
+                             let t_begin = simplify $ foldr (\(t1, labs) t -> chainWithEffect t1 labs t) (fst $ last typesEffects) (init typesEffects)
                              let ef_begin = mconcat $ map getEffect exps_
                              return $ Expr (l' :*: t_begin :*: ef_begin) (Begin exps_)
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
@@ -196,7 +192,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                      let t_funs = map getType funs_tl
                                      -- TODO: Infer effects and use below
                                      let t_funs' = solveLetrec vars t_funs
-                                     let funs_tl' = zipWith (\var t -> LVar var :*: t :*: mempty) vars t_funs'
+                                     let funs_tl' = zipWith (\var t -> LVar var :*: simplify t :*: mempty) vars t_funs'
                                      local (extendMany nams funs_tl') $
                                        do e_funs <- mapM go funs
                                           (e_bod, t_bod, ef_bod) <- goT bod
