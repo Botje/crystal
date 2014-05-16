@@ -183,21 +183,28 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
         redundantLoop = do evalStateT (walk expr) M.empty
                            modify $ M.map (_1 %~ (simplifyC . mergeSameChecks . simplifyC))
 
+        -- Replace already-checked variables with Cnone if types match, add the label to the earlier check
         stripWithCache :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) Check
-        stripWithCache l cs = do check <- simplifyC <$> transformM strip cs
+        stripWithCache l cs = do check <- simplifyC <$> strip cs
                                  lift $ updateChecksMap l $ \_ -> check
                                  return check
-          where strip c@(Check ls typ (Right id)) =
-                  do res <- gets $ M.lookup id
-                     case res of
-                          Just (l_top :*: typ_top)
-                            | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> simplifyC $ Cand [check, c]
-                                                   return Cnone
-                          _ -> return c
-                strip x = return x
+          where strip c = 
+                  case c of
+                       Cnone                   -> return Cnone
+                       Cor cs                  -> Cor <$> mapM strip cs
+                       Cand cs                 -> Cand <$> mapM strip cs
+                       Check ls typ (Left lv)  -> return c
+                       Check ls typ (Right id) ->
+                         do res <- gets $ M.lookup id
+                            case res of
+                                 Just (l_top :*: typ_top)
+                                   | typ == typ_top -> do lift $ updateChecksMap l_top $ \check -> simplifyC $ Cand [check, c]
+                                                          return Cnone
+                                 _ -> return c
                 updateChecksMap l f = do map <- get
                                          let Just (c :*: ef) = M.lookup l map
                                          put $ M.insert l (f c :*: ef) map
+
         updateCachedTypes :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) ()
         updateCachedTypes l check = update check
           where update Cnone = return ()
@@ -206,11 +213,12 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                 update (Check ls typ (Left lv)) = return ()
                 update (Check ls typ (Right id)) = modify (M.insert id (l :*: typ))
 
-        unknownLabel = error $ "Trying to add check to unknown label."
-
-        lowerBound :: (TLabel :*: Type) -> (TLabel :*: Type) -> (TLabel :*: Type)
-        lowerBound t1 t2 | t1 == t2 = t1
-        lowerBound _  _  = unknownLabel :*: TAny
+        mergeCachedTypes :: CachedTypes -> CachedTypes -> CachedTypes
+        mergeCachedTypes m1 m2 = M.fromAscList [ (k, t1)
+                                               | k <- S.toAscList sharedKeys
+                                               , (Just t1, Just t2) <- [(M.lookup k m1, M.lookup k m2)]
+                                               , t1 == t2 ]
+          where sharedKeys = M.keysSet m1 `S.intersection` M.keysSet m2
 
         -- With every type test τ? x, fix type of x to τ until next assignment.
         walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
@@ -222,20 +230,17 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
              case ie of
                -- Function application can affect variables. Reset their type.
                (Appl   f args)        -> do mapM_ walk (f:args)
-                                            forM_ (effectToList ef) $ \id -> modify (M.insert id (unknownLabel :*: TAny))
+                                            forM_ (effectToList ef) $ \id -> modify (M.delete id)
                (If     cond cons alt) -> do cached <- get
                                             m1 <- lift $ execStateT (walk cons) cached
                                             m2 <- lift $ execStateT (walk alt) cached
-                                            put $ M.unionWith lowerBound m1 m2
+                                            put $ mergeCachedTypes m1 m2
                (Let    [(id, e)] bod) -> do walk e
-                                            modify $ M.insert id (l :*: TAny)
                                             walk bod
                (LetRec bnds bod)      -> do mapM_ walk $ map snd bnds
-                                            forM_ (map fst bnds) $ \id -> modify $ M.insert id (l :*: TAny)
                                             walk bod
                (Lambda ids r bod)     -> do cached <- get
-                                            let act = do forM_ allSet $ \id -> modify $ M.insert id (unknownLabel :*: TAny)
-                                                         forM_ ids $ \id -> modify $ M.insert id (l :*: TAny)
+                                            let act = do forM_ allSet $ \id -> modify $ M.delete id
                                                          case r of
                                                               Nothing -> return ()
                                                               Just x  -> modify $ M.insert x (l :*: TList)
