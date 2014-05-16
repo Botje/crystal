@@ -452,7 +452,8 @@
         (eprintf "~a\t" *check-count*))
       (when (*report-timings*)
         (eprintf "~a\t" cpu))
-      (eprintf "~%"))))
+      (when (or (*counting-checks*) (*report-timings*))
+				(eprintf "~%")))))
 
 
 (define (read-code l)
