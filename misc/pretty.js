@@ -35,11 +35,16 @@ $(function() {
 	Ann.prototype.constructor = Ann;
 	Ann.prototype.render = function(out) {
 		var div = $("<span class='label' />");
+		if (!this.a.hasOwnProperty("label")) {
+			this.a = { "label": this.a.toString(), "check": [] };
+		}
+
 		var lab = this.a.label;
 		lab = lab.replace(/^LSource /,"");
 		lab = lab.replace(/"/g,"");
 		lab = lab.replace(/^LPrim /,"");
 		this.a.label = lab;
+
 		div.text(lab);
 		div.attr('title', JSON.stringify(this.a, null, " "));
 		div.tooltip();
