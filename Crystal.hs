@@ -27,13 +27,13 @@ type Pipeline = Expr Label -> Step DeclExpr
 pipeline :: Pipeline
 pipeline = transformC >=> infer >=> addChecks >=> postprocess 
 
-runPipeline :: Pipeline -> Expr Label -> Config -> (DeclExpr, [StepResult])
-runPipeline pipe ast cfg = runReader (runWriterT (pipe ast)) cfg
+runPipeline :: Pipeline -> Expr Label -> Config -> IO (DeclExpr, [StepResult])
+runPipeline pipe ast cfg = runReaderT (runWriterT (pipe ast)) cfg
 
 process config fname cts =
   case parseCrystal fname cts of
        Left err  -> hPrint stderr err >> exitFailure
-       Right ast -> do let (ast', results) = runPipeline pipeline ast config
+       Right ast -> do (ast', results) <- runPipeline pipeline ast config
                        putStrLn $ prettyD $ ast'
                        when (not (null results)) $ do
                          hPutStr stderr "<extra-information>\n"

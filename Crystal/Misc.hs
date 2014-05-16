@@ -6,14 +6,16 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Debug.Trace
 import Data.Text.Lazy
+import Data.Text.Format
 import qualified Data.Map as M
+import System.IO
 
 import Crystal.AST
 import Crystal.Pretty
 import Crystal.Config
 
 type StepResult = (String,Text)
-type Step a = WriterT [StepResult] (Reader Config) a
+type Step a = WriterT [StepResult] (ReaderT Config IO) a
 
 spy :: Show a => Expr a -> Step (Expr a)
 spy expr = trace (show expr) $ return expr
