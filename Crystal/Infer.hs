@@ -209,7 +209,7 @@ funEffects (TVar _)      = Nothing
 funEffects _             = Just emptyEffect
 
 extendMany :: Ord k => [k] -> [v] -> M.Map k v -> M.Map k v
-extendMany keys vals env = foldr (uncurry M.insert) env (zip keys vals)
+extendMany keys vals env = M.fromList (zip keys vals) `M.union` env
 
 apply :: Type -> [TypeNLabel] -> Type
 apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
