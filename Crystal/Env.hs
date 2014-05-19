@@ -197,7 +197,7 @@ main_env = carLikes `M.union` M.fromListWith or [
     "void?"         --> fun [1..1] . require [] TBool,
     "with-input-from-file" --> fun [1..2] . require [(TString,1)] TVoid,
     "with-output-to-file"  --> fun [1..2] . require [(TString,1)] TVoid,
-    "write"         --> fun [1..1] . require [(TString,1)] TVoid,
+    "write"         --> fun [1..1] . require [] TVoid,
     "write-char"    --> fun [1..1] . require [(TChar,1)] TVoid,
     "write-line"    --> fun [1..1] . require [(TString,1)] TVoid,
     "zero?"         --> fun [1..1] . require [] TBool
