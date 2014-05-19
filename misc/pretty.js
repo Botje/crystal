@@ -38,6 +38,9 @@ $(function() {
 		if (!this.a.hasOwnProperty("label")) {
 			this.a = { "label": this.a.toString(), "check": [] };
 		}
+		if (!this.a.hasOwnProperty("check")) {
+			this.a.check = "Cnone";
+		}
 
 		var lab = this.a.label;
 		lab = lab.replace(/^LSource /,"");
