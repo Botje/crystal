@@ -60,16 +60,16 @@ getEffect (Expr (_ :*: _ :*: ef) _) = ef
 getTypeAndLabel :: Expr TypedLabel -> TypeNLabel
 getTypeAndLabel (Expr (t :*: l :*: _) _) = t :*: l
 
-data Type = TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TList | TNull | TChar | TPort
-          | Tor [Type]
+data Type = TAny
+          | TError
           | TVar TVar
+          | TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TList | TNull | TChar | TPort
+          | Tor [Type]
           | TFun [TVar] Effect Type
           | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypeNLabel]
           | TUnfold Type [TypeNLabel]
-          | TError
-          | TAny
             deriving (Show, Eq, Ord, Data, Typeable)
 
 data VarFun = VarFun { vfName  :: Ident,
