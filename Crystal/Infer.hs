@@ -185,14 +185,14 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                            let (Expr l (Lambda vs _ _)) = fun
                                            let n = length vs
                                            let t_fun = TFun [1..n] emptyEffect $ TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]]
-                                           let ef_fun = mempty
+                                           let ef_fun = emptyEffect
                                            return (var, LSource l :*: t_fun :*: ef_fun)
                                      let (vars, bnds_tl) = unzip vars_binds_tl
                                      funs_tl <- local (extendMany nams bnds_tl) $ mapM go funs
                                      let t_funs = map getType funs_tl
                                      -- TODO: Infer effects and use below
                                      let t_funs' = solveLetrec vars t_funs
-                                     let funs_tl' = zipWith (\var t -> LVar var :*: simplify t :*: mempty) vars t_funs'
+                                     let funs_tl' = zipWith (\var t -> LVar var :*: simplify t :*: emptyEffect) vars t_funs'
                                      local (extendMany nams funs_tl') $
                                        do e_funs <- mapM go funs
                                           (e_bod, t_bod, ef_bod) <- goT bod
