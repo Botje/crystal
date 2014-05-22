@@ -2,7 +2,7 @@
 module Crystal.RecursiveType where
 
 import Control.Arrow (second)
-import Control.Lens (_1, _2, mapped, (^.), (.~), (&))
+import Control.Lens (_1, _2, mapped, (^.), (.~), (&), view, to, (%~))
 import Control.Lens.TH
 import Data.List
 import Data.Function
@@ -98,7 +98,7 @@ traceToType (Trace _ ef _seen concrete _todo) vars =
   simplify $ braid vars ef concrete
 
 matchKey :: TraceKey -> TraceKey-> Bool
-matchKey (_, xs1) (_, xs2) = and $ zipWith (\t1 t2 -> t1 == TAny || t1 == t2) xs1 xs2
+matchKey (f1, xs1) (f2, xs2) = f1 == f2 && and (zipWith (\t1 t2 -> t1 == TAny || t1 == t2) xs1 xs2)
 
 toTraceKey :: TraceKey -> TraceKey
 toTraceKey (tv, vs) = (tv, [ if isTVar v then TAny else v | v <- vs ])
@@ -134,7 +134,7 @@ processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & t
               if S.null (meApplies `S.difference` seenApplies)
                 then (meApplies `S.union` seen, concrete' `S.union` concrete, todoApplies)
                 else let (oneApply,restApplies) = S.deleteFindMin meApplies
-                     in loop (oneApply `S.insert` seen) (concrete' `S.union` concrete) (walk oneApply `S.union` restApplies `S.union` otherApplies)
+                     in loop (oneApply `S.insert` seen) (S.map canon concrete' `S.union` concrete) (walk oneApply `S.union` restApplies `S.union` otherApplies)
           where walk :: T -> S.Set T
                 walk thread = let (prefix, tip) = splitThread thread
                               in case tip of 
@@ -146,7 +146,7 @@ solveMutual :: Mutual -> Mutual
 solveMutual (Mutual funs) = traced $
      Mutual [ (tv, traceToType t args) | k@(tv, _) <- M.keys traces , let Just t = M.lookup k solved, let Just (TFun args _ _) = lookup tv funs ]
   where traces = M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
-        solved = exploreTraces traces 
+        solved = transitiveTraces $ exploreTraces traces 
 
 type Traces = M.Map TraceKey Trace
 
@@ -155,7 +155,7 @@ exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
   where addTrace :: S.Set TraceKey -> State Traces ()
         addTrace tks | S.null tks = 
           do traces' <- get
-             trace ("final traces: " ++ show traces') $ return ()
+             return ()
         addTrace tks =
           do traces' <- get
              let (tk,tks') = S.deleteFindMin tks
@@ -169,7 +169,25 @@ exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
                         addTrace $ S.map (applyToTraceKey . tip) (trace ^. traceTodo) `S.union` tks'
 
 transitiveTraces :: Traces -> Traces
-transitiveTraces = id
+transitiveTraces traces = trace ("transitive input: " ++ show traces) $ execState (loop traces) M.empty
+  where loop traces | M.null traces = return ()
+        loop traces = let (nullTodo, rest) = M.partition (view (traceTodo . to S.null)) traces
+                      in if not $ M.null nullTodo
+                            then do modify (M.union nullTodo)
+                                    loop $ M.map (replaceTips nullTodo) rest
+                            else trace ("remaining transitive: " ++ show rest) $ return ()
+
+replaceTips :: Traces -> Trace -> Trace
+replaceTips traces t =
+  if S.null suitable
+     then t
+     else t & traceTodo .~ rest
+            & traceConcrete %~ flip S.union (S.unions (map replaceTip $ S.toList suitable))
+  where (suitable, rest) = S.partition (\thread -> applyToTraceKey (tip thread) `M.member` traces) (t ^. traceTodo)
+        replaceTip thread = let (prefix, tip@(TAppl var args)) = splitThread thread
+                                Just trace' = M.lookup (applyToTraceKey tip) traces
+                                toReplace = [ (tv, v) | (i, v) <- zip (trace' ^. traceTraceKey._2) (map (^. _2) args), i /= v, let TVar tv = i ]
+                            in S.map (canon . prefix . subst toReplace) (trace' ^. traceConcrete)
 
 subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
