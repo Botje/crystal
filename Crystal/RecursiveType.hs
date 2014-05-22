@@ -146,8 +146,13 @@ solveMutual :: Mutual -> Mutual
 solveMutual (Mutual funs) = traced $
      Mutual [ (tv, traceToType t args) | k@(tv, _) <- M.keys traces , let Just t = M.lookup k solved, let Just (TFun args _ _) = lookup tv funs ]
   where traces = M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
-        solved = execState (addTrace $ M.keysSet traces) M.empty
-        addTrace :: S.Set TraceKey -> State (M.Map TraceKey Trace) ()
+        solved = exploreTraces traces 
+
+type Traces = M.Map TraceKey Trace
+
+exploreTraces :: Traces -> Traces
+exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
+  where addTrace :: S.Set TraceKey -> State Traces ()
         addTrace tks | S.null tks = 
           do traces' <- get
              trace ("final traces: " ++ show traces') $ return ()
@@ -162,6 +167,9 @@ solveMutual (Mutual funs) = traced $
                             trace     = specialize tk bestTrace
                         put $ M.insert tk trace traces'
                         addTrace $ S.map (applyToTraceKey . tip) (trace ^. traceTodo) `S.union` tks'
+
+transitiveTraces :: Traces -> Traces
+transitiveTraces = id
 
 subst :: [(Int, T)] -> T -> T
 subst m body = transform (apply' m) body
