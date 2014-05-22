@@ -1,5 +1,5 @@
 {-#LANGUAGE DeriveDataTypeable, TemplateHaskell #-}
-module Crystal.RecursiveType (solveLetrec) where
+module Crystal.RecursiveType where
 
 import Control.Arrow (second)
 import Control.Lens (_1, _2, mapped, (^.), (.~), (&))
@@ -28,7 +28,6 @@ import Crystal.Type
 -- TODO: remove
 type T = Type
 
-type Env = M.Map Int T
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
 
