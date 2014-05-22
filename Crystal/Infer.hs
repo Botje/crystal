@@ -12,6 +12,7 @@ import Data.Generics.Biplate
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import Debug.Trace
 import Control.Monad.State
 import Control.Monad.Reader
 import qualified Data.Map as M
@@ -179,16 +180,22 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                              let ef_begin = mconcat $ map getEffect exps_
                              return $ Expr (l' :*: t_begin :*: ef_begin) (Begin exps_)
           (LetRec bnds bod) -> let (nams, funs) = unzip bnds
-                               in do vars_binds_tl <- forM funs $ \fun ->
+                               in do vars_binds_tl <- forM funs $ \(Expr l (Lambda vs _ _)) ->
                                         do var <- freshTVar
                                            -- TODO r
-                                           let (Expr l (Lambda vs _ _)) = fun
-                                           let n = length vs
-                                           let t_fun = TFun [1..n] emptyEffect $ TAppl (TVar var) [LVar v :*: TVar v | v <- [1..n]]
+                                           vars <- replicateM (length vs) freshTVar
+                                           let t_fun = TFun vars emptyEffect $ TAppl (TVar var) [LVar v :*: TVar v | v <- vars]
                                            let ef_fun = emptyEffect
                                            return (var, LSource l :*: t_fun :*: ef_fun)
                                      let (vars, bnds_tl) = unzip vars_binds_tl
-                                     funs_tl <- local (extendMany nams bnds_tl) $ mapM go funs
+                                     -- reuse the inferred labels and tvars for the actual inference of functions
+                                     funs_tl <- local (extendMany nams bnds_tl) $
+                                       forM bnds $ \(nam, Expr _ (Lambda vs r bod)) ->
+                                         do Just (l_fun :*: TFun tvars _ _ :*: _) <- asks $ M.lookup nam
+                                            let tl_vars = map (\v -> LVar v :*: TVar v :*: emptyEffect) tvars
+                                            (e_funbod, t_funbod, ef_funbod) <- local (extendMany vs tl_vars) (goT bod)
+                                            let t_fun = TFun tvars ef_funbod t_funbod
+                                            return $ Expr (l_fun :*: t_fun :*: emptyEffect) (Lambda vs r e_funbod)
                                      let t_funs = map getType funs_tl
                                      -- TODO: Infer effects and use below
                                      let t_funs' = solveLetrec vars t_funs
