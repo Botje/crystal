@@ -108,7 +108,6 @@ genFunc n names = choose (1,3) >>= \args -> TFun [1..args] <$> genT names args n
 --                      . showsPrec (d+1) t2) .
 --       showString ". " . 
 --       showsPrec (d+1) t
---   showsPrec d (TUnfold f ts) = showsPrec d (TAppl f ts)
 --   showsPrec d (TAppl f ts) = 
 --     showParen True $
 --       (['A'..'Z'] !! abs (f+1) :) .
