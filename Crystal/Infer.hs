@@ -99,8 +99,8 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
 
         effectToLabels :: Effect -> Infer (S.Set TLabel)
         effectToLabels ef = do env <- ask
-                               let typedlabels = catMaybes $ map (flip M.lookup env) $ S.toList ef
-                               return $ S.fromList $ map (^._1) typedlabels
+                               let effects = [ tl^._1 | nam <- S.toList ef, Just tl <- return (M.lookup nam env) ]
+                               return $ S.fromList effects
 
         goT :: Expr Label -> Infer (Expr TypedLabel, Type, Effect)
         goT e = go e >>= \e' -> return (e', getType e', getEffect e')
@@ -132,12 +132,20 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           -- TODO: Type rule for this is wrong in thesis!
           (Let [(nam, exp)] bod) -> do (e_x, t_1, ef_x) <- goT exp
                                        let t_l = simplify $ leaves t_1
-                                       let bod_tl = getLabel e_x :*: t_l :*: mempty
-                                       (e_bod, t_bod, ef_bod) <- local (extend nam bod_tl) (goT bod)
-                                       forbiddenLabels <- local (extend nam bod_tl) $ effectToLabels ef_x
-                                       let t_let = simplify $ chainWithEffect t_1 forbiddenLabels t_bod
-                                       let ef_let = ef_x `mappend` (S.delete nam ef_bod)
-                                       return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
+                                       case t_l of
+                                            TAppl _ _ -> do var <- freshTVar
+                                                            let bod_tl = getLabel e_x :*: TVar var :*: emptyEffect
+                                                            (e_bod, t_bod, ef_bod) <- local (extend nam bod_tl) (goT bod)
+                                                            forbiddenLabels <- local (extend nam bod_tl) $ effectToLabels ef_x
+                                                            let t_let = chainWith (\t -> TChain t var (getLabel e_x) $ stripLabels forbiddenLabels t_bod) t_1
+                                                            let ef_let = ef_x `mappend` (S.delete nam ef_bod)
+                                                            return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
+                                            _ -> do let bod_tl = getLabel e_x :*: t_l :*: mempty
+                                                    (e_bod, t_bod, ef_bod) <- local (extend nam bod_tl) (goT bod)
+                                                    forbiddenLabels <- local (extend nam bod_tl) $ effectToLabels ef_x
+                                                    let t_let = chainWithEffect t_1 forbiddenLabels t_bod
+                                                    let ef_let = ef_x `mappend` (S.delete nam ef_bod)
+                                                    return $ Expr (l' :*: t_let :*: ef_let) (Let [(nam, e_x)] e_bod)
           (Lambda ids r bod) -> do a_ids <- mapM (const freshTVar) ids
                                    a_r   <- freshTVar
                                    env'  <- asks (extendMany ids $ map (\v -> LVar v :*: TVar v :*: mempty) a_ids)
@@ -219,13 +227,12 @@ extendMany :: Ord k => [k] -> [v] -> M.Map k v -> M.Map k v
 extendMany keys vals env = M.fromList (zip keys vals) `M.union` env
 
 apply :: Type -> [TypeNLabel] -> Type
-apply (Tor ts) a_args = Tor $ map (flip apply a_args) ts
-apply (TIf l t_t t_a t) a_args = TIf l t_t t_a (apply t a_args)
-apply vf@(TVarFun _) a_args = expand (TAppl vf a_args)
-apply t_f@(TFun t_args ef t_bod) a_args | applies t_f a_args = expand (TAppl t_f a_args)
-                                        | otherwise = TError
-apply (TVar v) a_args = TAppl (TVar v) a_args
-apply _ a_args = TError
+apply (Tor ts) a_args                   = Tor $ map (flip apply a_args) ts
+apply (TIf l t_t t_a t) a_args          = TIf l t_t t_a (apply t a_args)
+apply vf@(TVarFun _) a_args             = expand (TAppl vf a_args)
+apply t_f@(TFun t_args ef t_bod) a_args = expand (TAppl t_f a_args)
+apply (TVar v) a_args                   = TAppl (TVar v) a_args
+apply _ a_args                          = TError
 
 applies :: Type -> [TypeNLabel] -> Bool
 applies (TFun t_args _ t_bod) a_args = length t_args == length a_args  
@@ -236,7 +243,6 @@ applyPrim t_f@(Tor funs) t_args =
   case listToMaybe $ filter (flip applies t_args) funs of
        Nothing  -> apply t_f t_args
        Just fun -> apply fun t_args
-applyPrim t_f@(TFun t_args _ t_bod) a_args | applies t_f a_args = apply t_f a_args
 applyPrim t_f t_args = apply t_f t_args
 
 instantiatePrim :: Ident -> TLabel -> Type -> Type
@@ -245,24 +251,30 @@ instantiatePrim nam lab t = transform f t
         f x = x
 
 expand :: Type -> Type
-expand (TAppl (TFun t_args _ t_bod) a_args) = replace (M.fromList $ zip t_args a_args) t_bod
-expand (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
-expand typ = typ
+expand = transform expand'
+  where
+    expand' (TAppl t_f@(TFun t_args _ t_bod) a_args) 
+     | applies t_f a_args = expand $ replace (M.fromList $ zip t_args a_args) t_bod
+     | otherwise          = TError
+    expand' (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
+    expand' typ@(TChain appl var lab body) =
+      case appl of
+           TIf labs tst tgt appl' -> TIf labs tst tgt $ expand' (TChain appl' var lab body)
+           TAppl (TVar _) _       -> typ
+           _                      -> chainWith (\t -> replace (M.singleton var (lab :*: t)) body) appl
+     where applied = simplify appl
+           tl = lab :*: applied
+    expand' typ = typ
 
 chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
-chainWithEffect t forbidden t_c = go t
-  where t_c' = simplify $ transform strip t_c
-        go (Tor ts) = Tor $ map go ts
-        go (TIf (blame, cause) t_t t_1 t) 
-          = TIf (blame, cause) t_t t_1 $ go t
-        go t = t_c'
-        strip tif@(TIf (blame, cause) t_t t_1 t)
+chainWithEffect t forbidden t_c = chain t $ stripLabels forbidden t_c
+
+stripLabels :: S.Set TLabel -> Type -> Type
+stripLabels forbidden t = simplify $ transform strip t
+  where strip tif@(TIf (blame, cause) t_t t_1 t)
               | cause `S.member` forbidden = t
               | otherwise                  = tif
         strip t = t
-
-chain :: Type -> Type -> Type
-chain t1 t2 = chainWithEffect t1 S.empty t2
 
 leaves :: Type -> Type
 leaves (Tor ts) = Tor $ map leaves ts
@@ -276,5 +288,8 @@ replace env (TFun args ef bod) = TFun args ef $ replace (extendMany args (map (\
 replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') (replace env t_1) (replace env t_2) (replace env t_3)
   where l2' = case l2 of LVar tv | Just (l :*: t) <- M.lookup tv env -> l
                          x -> x
-replace env (TAppl fun args) = apply (replace env fun) (map (over _2 (replace env)) args)
+replace env (TAppl fun args) = apply (replace env fun) $ map inst args
+  where inst (l :*: TVar tv) | Just (l' :*: t') <- M.lookup tv env = (l' :*: t')
+        inst (l :*: t) = l :*: t
+replace env (TChain t1 var lab t2) = expand (TChain (replace env t1) var lab (replace env t2))
 replace env x = x

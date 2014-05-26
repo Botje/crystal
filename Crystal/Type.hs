@@ -69,7 +69,7 @@ data Type = TAny
           | TVarFun VarFun
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypeNLabel]
-          | TUnfold Type [TypeNLabel]
+          | TChain Type TVar TLabel Type
             deriving (Show, Eq, Ord, Data, Typeable)
 
 data VarFun = VarFun { vfName  :: Ident,
@@ -109,6 +109,9 @@ simplify tif@(TIf l t_1 t_2 t) | trivialIf tif     = t'
                                | otherwise         = simplified
   where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
         simplified = TIf l t_1 t_2' t'
+simplify tc@(TChain appl var lab rest) | rest' == rest = tc
+                                       | otherwise     = TChain appl var lab rest'
+  where rest' = simplify rest
 simplify t = t
 
 expandOr :: Type -> [Type]
@@ -121,3 +124,14 @@ trivialIf (TIf _ (TFun _ _ _) (TVarFun _) _) = True
 trivialIf (TIf _ TPair TList _) = True
 trivialIf (TIf _ x y _) | x == y = True
 trivialIf _ = False
+
+chain :: Type -> Type -> Type
+chain t1 t2 = chainWith (const t2) t1
+
+chainWith :: (Type -> Type) -> Type -> Type
+chainWith f t1 = go t1
+  where go (Tor ts) = Tor $ map go ts
+        go (TIf (blame, cause) t_t t_1 t) 
+          = TIf (blame, cause) t_t t_1 $ go t
+        go (TChain t var lab t2) = TChain t var lab $ chainWith f t2
+        go t = f t

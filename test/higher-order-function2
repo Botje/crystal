@@ -1,0 +1,3 @@
+(define (f g x) (+ 3 (g x)))
+(define z (f sqrt "hallo"))
+z
