@@ -2,7 +2,7 @@
 module Crystal.RecursiveType where
 
 import Control.Arrow (second)
-import Control.Lens (_1, _2, mapped, (^.), (.~), (&), view, to, (%~))
+import Control.Lens (_1, _2, _3, mapped, (^.), (.~), (&), view, to, (%~))
 import Control.Lens.TH
 import Data.List
 import Data.Function
@@ -50,8 +50,9 @@ braid vars ef result = if S.null result
 unbraid :: T -> S.Set T
 unbraid (Tor ts) = S.unions $ map unbraid ts
 unbraid (TIf ls t1 t2 t) | t1 == t2  = unbraid t
-                           | isTVar t2 = S.map (TIf ls t1 t2) $ unbraid t
-                           | otherwise = S.empty
+                         | isTVar t2 = S.map (TIf ls t1 t2) $ unbraid t
+                         | otherwise = S.empty
+unbraid (TChain appl var lab body) = S.map (TChain appl var lab) $ unbraid body
 unbraid t = S.singleton t
 
 getTFunEffect :: Type -> Effect
@@ -61,21 +62,32 @@ getTFunBody :: Type -> Type
 getTFunBody (TFun _ _ bod) = bod
 
 canon :: T -> T
-canon t = descend [] t
-  where descend env (TIf ls t1 t2 t)
-          | t1 == t2 = descend env t
-          | all (`elem` concreteTypes) [t1, t2] = TError
-          | otherwise = let TVar tv = t2 in descend ((t1,ls,t2):env) $ subst [(tv, t1)] t
-        descend env t = foldr (\(t1,ls,t2) rest -> TIf ls t1 t2 rest) t $ sortBy (compare `on` (^. _2)) env
+canon t = flatten tests spine
+  where (tests, spine) = descend t
+        descend (TIf ls t1 t2 t)
+          | t1 == t2 = descend t
+          | all (`elem` concreteTypes) [t1, t2] = ([], TError)
+          | otherwise = let TVar tv = t2
+                            (tests, spine) = descend (subst [(tv, t1)] t)
+                        in ((ls,t1,t2) : tests, spine)
+        descend (TChain appl var lab body) =
+          let (tests, spine) = descend body
+              (varTests, otherTests) = partition (\t -> t ^._3 == TVar var) tests
+          in (otherTests, TChain appl var lab $ flatten varTests spine)
+        descend t = ([], t)
+        flatten tests t =
+          let sorted = sortBy (compare `on` (^. _3)) tests
+          in foldr (\(ls,t1,t2) rest -> TIf ls t1 t2 rest) t sorted 
 
 
 tip :: T -> T
-tip (TIf _ _ _ t) = tip t
-tip t = t
+tip = snd . splitThread
 
 splitThread :: T -> (T -> T, T)
 splitThread (TIf ls t1 t2 t) = (TIf ls t1 t2 . prefix', tip)
   where (prefix', tip) = splitThread t
+splitThread (TChain appl var lab body) = (TChain appl var lab . prefix', tip)
+  where (prefix', tip) = splitThread body
 splitThread t = (id, t)
 
 data Mutual = Mutual [(TVar, T)] deriving (Data, Typeable, Eq, Show)
@@ -134,7 +146,9 @@ processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & t
               if S.null (meApplies `S.difference` seenApplies)
                 then (meApplies `S.union` seen, concrete' `S.union` concrete, todoApplies)
                 else let (oneApply,restApplies) = S.deleteFindMin meApplies
-                     in loop (oneApply `S.insert` seen) (S.map canon concrete' `S.union` concrete) (walk oneApply `S.union` restApplies `S.union` otherApplies)
+                     in loop (oneApply `S.insert` seen)
+                             (S.map canon concrete' `S.union` concrete)
+                             (walk oneApply `S.union` restApplies `S.union` otherApplies)
           where walk :: T -> S.Set T
                 walk thread = let (prefix, tip) = splitThread thread
                               in case tip of 
