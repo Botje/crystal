@@ -1,4 +1,4 @@
-{-#LANGUAGE DeriveDataTypeable, TemplateHaskell #-}
+{-#LANGUAGE DeriveDataTypeable #-}
 module Crystal.RecursiveType where
 
 import Control.Arrow (second)
@@ -22,6 +22,7 @@ import Control.Applicative
 import Test.QuickCheck
 import Text.Show
 
+import Crystal.Trace
 import Crystal.Tuple
 import Crystal.Type
 
@@ -30,17 +31,6 @@ type T = Type
 
 type Head = (Int, [T])
 type HeadsMap = M.Map Head (Maybe T)
-
-type TraceKey = (TVar, [Type])
-
-data Trace = Trace { _traceTraceKey :: TraceKey
-                   , _traceEffects  :: Effect
-                   , _traceSeen     :: S.Set T
-                   , _traceConcrete :: S.Set T
-                   , _traceTodo     :: S.Set T
-                   } deriving (Show)
-
-$(makeLenses ''Trace)
 
 braid :: [Int] -> Effect -> S.Set T -> T
 braid vars ef result = if S.null result
