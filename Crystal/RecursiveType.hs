@@ -132,9 +132,9 @@ processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & t
           let (applies, concrete') = S.partition (isApply . tip) todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
-          in Debug.Trace.trace ("process " ++ show myTraceKey ++" " ++ show (seen, concrete, todo)) $
+          in -- Debug.Trace.trace ("process " ++ show myTraceKey ++" " ++ show (seen, concrete, todo)) $
               if S.null (meApplies `S.difference` seenApplies)
-                then (meApplies `S.union` seen, concrete' `S.union` concrete, todoApplies)
+                then (meApplies `S.union` seen, S.map canon concrete' `S.union` concrete, todoApplies)
                 else let (oneApply,restApplies) = S.deleteFindMin meApplies
                      in loop (oneApply `S.insert` seen)
                              (S.map canon concrete' `S.union` concrete)
@@ -174,9 +174,10 @@ exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
                         addTrace $ applies `S.union` tks'
 
 expandTrace :: Traces -> Trace -> Trace
-expandTrace solved t = t & traceConcrete %~ (S.unions . map expand . S.toList)
-                         & traceSeen     %~ (S.unions . map expand . S.toList)
-                         & traceTodo     %~ (S.unions . map expand . S.toList)
+expandTrace solved t = processTrace $
+                         t & traceConcrete %~ (S.map canon . S.unions . map expand . S.toList)
+                           & traceSeen     %~ (S.map canon . S.unions . map expand . S.toList)
+                           & traceTodo     %~ (S.map canon . S.unions . map expand . S.toList)
   where expand (TIf ls t1 t2 t) = S.map (TIf ls t1 t2) $ expand t
         expand (TChain appl var lab body) =
           case M.lookup (applyToTraceKey appl) solved of
@@ -203,14 +204,20 @@ transitiveTraces traces = trace ("transitive input: " ++ show traces) $ execStat
         loop traces = do solved <- get
                          let seen = M.keysSet solved
                              working = M.mapWithKey (\k _ -> fromJust (M.lookup k calls) `S.difference` seen) traces
-                             next    = minimumBy (compare `on` (S.size . snd)) $ M.toList working
+                             keyFun (tk, tks) = (S.size tks, not $ tk `S.member` tks)
+                             next    = minimumBy (compare `on` keyFun) $ M.toList working
                              (tk, called) = next
-                             tks = tk : S.toList called
-                             workTraces = [ (tk, expandTrace solved trace) | tk <- tks, let Just trace = M.lookup tk solved ]
+                             tks = tk : S.toList (S.delete tk called)
+                             workTraces = [ (tk, expandTrace solved trace) | tk <- tks, let Just trace = M.lookup tk traces ]
                          consider workTraces
                          loop $ M.difference traces $ M.fromList $ zip tks (repeat undefined)
         consider :: [(TraceKey, Trace)] -> State Traces ()
-        consider work = return ()
+        consider work | traceShow work False = undefined
+        consider [(tk, trace)] = modify $ M.insert tk final
+          where expanded = iterate go trace !! 100
+                go trace = expandTrace (M.singleton tk trace) trace
+                final = expandTrace (M.singleton tk (trace & traceConcrete %~ S.map tip)) expanded
+
 
 transitiveCalls :: Traces -> M.Map TraceKey (S.Set TraceKey)
 transitiveCalls traces = M.map fixCalls calls
