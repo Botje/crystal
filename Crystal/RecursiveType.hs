@@ -180,16 +180,54 @@ exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
                             bestTrace = snd $ minimumBy (compare `on` (length . filter (==TAny) . snd . fst)) $ M.assocs suitable
                             trace     = specialize tk bestTrace
                         put $ M.insert tk trace traces'
-                        addTrace $ S.map (applyToTraceKey . tip) (trace ^. traceTodo) `S.union` tks'
+                        let applies = S.fromList [ applyToTraceKey t | thread <- S.toList ((trace ^. traceTodo) `S.union` (trace ^. traceConcrete)), t@(TAppl f args) <- universe thread ]
+                        addTrace $ applies `S.union` tks'
+
+expandTrace :: Traces -> Trace -> Trace
+expandTrace solved t = t & traceConcrete %~ (S.unions . map expand . S.toList)
+                         & traceSeen     %~ (S.unions . map expand . S.toList)
+                         & traceTodo     %~ (S.unions . map expand . S.toList)
+  where expand (TIf ls t1 t2 t) = S.map (TIf ls t1 t2) $ expand t
+        expand (TChain appl var lab body) =
+          case M.lookup (applyToTraceKey appl) solved of
+              Just trace -> S.fromList
+                              [ prefix body''
+                              | thread <- S.toList $ expanded appl trace
+                              , let (prefix, tip) = splitThread thread
+                              , let body' = subst [(var, tip)] body
+                              , body'' <- S.toList $ expand body'
+                              ]
+              Nothing    -> S.map (TChain appl var lab) $ expand body
+        expand appl@(TAppl _ _) =
+          case M.lookup (applyToTraceKey appl) solved of
+               Just trace -> expanded appl trace
+               Nothing    -> S.singleton appl
+        expand t = S.singleton t
+        expanded (TAppl _ args) trace = let toReplace = [ (tv, v) | (i, v) <- zip (trace ^. traceTraceKey._2) (map (^. _2) args), i /= v, let TVar tv = i ]
+                                       in S.map (subst toReplace) (trace ^. traceConcrete)
 
 transitiveTraces :: Traces -> Traces
 transitiveTraces traces = trace ("transitive input: " ++ show traces) $ execState (loop traces) M.empty
-  where loop traces | M.null traces = return ()
-        loop traces = let (nullTodo, rest) = M.partition (view (traceTodo . to S.null)) traces
-                      in if not $ M.null nullTodo
-                            then do modify (M.union nullTodo)
-                                    loop $ M.map (replaceTips nullTodo) rest
-                            else trace ("remaining transitive: " ++ show rest) $ return ()
+  where calls = transitiveCalls traces
+        loop traces | M.null traces = return ()
+        loop traces = do solved <- get
+                         let seen = M.keysSet solved
+                             working = M.mapWithKey (\k _ -> fromJust (M.lookup k calls) `S.difference` seen) traces
+                             next    = minimumBy (compare `on` (S.size . snd)) $ M.toList working
+                             (tk, called) = next
+                             tks = tk : S.toList called
+                             workTraces = [ (tk, expandTrace solved trace) | tk <- tks, let Just trace = M.lookup tk solved ]
+                         consider workTraces
+                         loop $ M.difference traces $ M.fromList $ zip tks (repeat undefined)
+        consider :: [(TraceKey, Trace)] -> State Traces ()
+        consider work = return ()
+
+transitiveCalls :: Traces -> M.Map TraceKey (S.Set TraceKey)
+transitiveCalls traces = M.map fixCalls calls
+  where calls = M.map (\t -> S.fromList [ applyToTraceKey ta | thread <- S.toList (view traceConcrete t `S.union` view traceTodo t), ta@(TAppl _ _) <- universe thread ]) traces
+        fixCalls ts | S.size ts == S.size ts' = ts
+                    | otherwise = fixCalls ts'
+          where ts' = ts `S.union` S.unions [ s | tk <- S.toList ts, let Just s = M.lookup tk calls ]
 
 replaceTips :: Traces -> Trace -> Trace
 replaceTips traces t =
