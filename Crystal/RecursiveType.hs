@@ -26,6 +26,11 @@ import Crystal.Trace
 import Crystal.Tuple
 import Crystal.Type
 
+debugging = False
+
+traced f x | debugging = trace (f x) x
+traced f x | otherwise = x
+
 -- TODO: remove
 type T = Type
 
@@ -87,10 +92,8 @@ solveLetrec vars types = map snd solved
   where mut = Mutual $ zip vars types
         Mutual solved = solveMutual mut
 
-traced x = traceShow x x
-
 typeToTrace :: TVar -> Type -> Trace
-typeToTrace tv (TFun args ef body) = traced $ processTrace trace 
+typeToTrace tv (TFun args ef body) = processTrace trace 
   where trace = Trace tk ef S.empty S.empty todo
         todo = unbraid body
         tk = (tv, map TVar args)
@@ -117,7 +120,6 @@ specialize tk@(tv, vs) orig = processTrace trace
                      & traceTodo     .~ S.map (canon . subst toSpecialize) allTraces
 
 applyToTraceKey :: Type -> TraceKey
--- applyToTraceKey x | trace (show x) False = undefined
 applyToTraceKey (TAppl (TVar tv) args) = (tv, types)
   where types = [ if isTVar t then TAny else t | (_ :*: t) <- args ]
 
@@ -132,8 +134,7 @@ processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & t
           let (applies, concrete') = S.partition (isApply . tip) todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
-          in -- Debug.Trace.trace ("process " ++ show myTraceKey ++" " ++ show (seen, concrete, todo)) $
-              if S.null (meApplies `S.difference` seenApplies)
+          in if S.null (meApplies `S.difference` seenApplies)
                 then (meApplies `S.union` seen, S.map canon concrete' `S.union` concrete, todoApplies)
                 else let (oneApply,restApplies) = S.deleteFindMin meApplies
                      in loop (oneApply `S.insert` seen)
@@ -147,11 +148,10 @@ processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & t
                                      in S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
 
 solveMutual :: Mutual -> Mutual
-solveMutual (Mutual funs) = traced $
+solveMutual (Mutual funs) = 
      Mutual [ (tv, traceToType t args) | k@(tv, _) <- M.keys traces , let Just t = M.lookup k solved, let Just (TFun args _ _) = lookup tv funs ]
-  where traces = M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
-        solved = transitiveTraces $ exploreTraces traces 
-
+  where traces = traced (\x -> "input: \n" ++ prettyTraces x) $ M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
+        solved = traced (\x -> "solved: \n" ++ prettyTraces x) $ transitiveTraces $ exploreTraces traces 
 
 exploreTraces :: Traces -> Traces
 exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
@@ -197,7 +197,7 @@ expandTrace solved t = processTrace $
                                        in S.map (subst toReplace) (trace ^. traceConcrete)
 
 transitiveTraces :: Traces -> Traces
-transitiveTraces traces = trace ("transitive input: " ++ show traces) $ execState (loop traces) M.empty
+transitiveTraces traces = traced (\_ -> "transitive input: " ++ prettyTraces traces) $ execState (loop traces) M.empty
   where calls = transitiveCalls traces
         loop traces | M.null traces = return ()
         loop traces = do solved <- get
