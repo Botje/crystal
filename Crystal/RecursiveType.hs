@@ -207,16 +207,20 @@ transitiveTraces traces = traced (\_ -> "transitive input: " ++ prettyTraces tra
                              next    = minimumBy (compare `on` keyFun) $ M.toList working
                              (tk, called) = next
                              tks = tk : S.toList (S.delete tk called)
-                             workTraces = [ (tk, expandTrace solved trace) | tk <- tks, let Just trace = M.lookup tk traces ]
+                             workTraces = [ expandTrace solved trace | tk <- tks, let Just trace = M.lookup tk traces ]
                          consider workTraces
                          loop $ M.difference traces $ M.fromList $ zip tks (repeat undefined)
-        consider :: [(TraceKey, Trace)] -> State Traces ()
-        consider work | traceShow work False = undefined
-        consider [(tk, trace)] = modify $ M.insert tk final
-          where expanded = iterate go trace !! 100
-                go trace = expandTrace (M.singleton tk trace) trace
-                final = expandTrace (M.singleton tk (trace & traceConcrete %~ S.map tip)) expanded
-
+        consider :: [Trace] -> State Traces ()
+        consider traces = traced (\_ -> "consider input: \n" ++ pretty traces) $
+            modify $ M.union $ considerFix seed traces
+          where seed = M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | trace <- traces, let conc = trace ^. traceConcrete, not $ S.null conc ]
+                considerFix :: Traces -> [Trace] -> Traces
+                considerFix solved traces = traced (\_ -> "after one round: \n" ++ pretty (M.elems expanded)) $
+                  if M.null (M.differenceWith diff solved expanded)
+                     then solved
+                     else considerFix expanded traces
+                  where expanded = M.fromList $ map (\trace -> (toTraceKey (trace ^. traceTraceKey), trace)) $ map (expandTrace solved) traces
+                        diff t1 t2 = if (t1 ^. traceConcrete) == (t2 ^. traceConcrete) then Nothing else Just t2
 
 transitiveCalls :: Traces -> M.Map TraceKey (S.Set TraceKey)
 transitiveCalls traces = M.map fixCalls calls
