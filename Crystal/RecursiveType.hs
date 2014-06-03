@@ -152,7 +152,6 @@ solveMutual (Mutual funs) = traced $
   where traces = M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
         solved = transitiveTraces $ exploreTraces traces 
 
-type Traces = M.Map TraceKey Trace
 
 exploreTraces :: Traces -> Traces
 exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
