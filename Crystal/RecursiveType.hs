@@ -26,7 +26,7 @@ import Crystal.Trace
 import Crystal.Tuple
 import Crystal.Type
 
-debugging = False
+debugging = True
 
 traced f x | debugging = trace (f x) x
 traced f x | otherwise = x
@@ -197,7 +197,7 @@ expandTrace solved t = processTrace $
                                        in S.map (subst toReplace) (trace ^. traceConcrete)
 
 transitiveTraces :: Traces -> Traces
-transitiveTraces traces = traced (\_ -> "transitive input: " ++ prettyTraces traces) $ execState (loop traces) M.empty
+transitiveTraces traces = traced (\_ -> "transitive input: \n" ++ prettyTraces traces) $ execState (loop traces) M.empty
   where calls = transitiveCalls traces
         loop traces | M.null traces = return ()
         loop traces = do solved <- get
