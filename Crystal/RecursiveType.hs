@@ -124,13 +124,15 @@ applyToTraceKey (TAppl (TVar tv) args) = (tv, types)
   where types = [ if isTVar t then TAny else t | (_ :*: t) <- args ]
 
 processTrace :: Trace -> Trace
-processTrace trace = trace & traceSeen .~ seen' & traceConcrete .~ concrete' & traceTodo .~ todo'
+processTrace trace = trace & traceSeen     .~ seen'
+                           & traceConcrete .~ concrete'
+                           & traceTodo     .~ todo'
   where (seen', concrete', todo') = loop (trace ^. traceSeen) (trace ^. traceConcrete) (trace ^. traceTodo)
         myTraceKey = trace ^. traceTraceKey
         myArgs = snd myTraceKey
         isApplyOfMe appl@(TAppl _ _) = applyToTraceKey appl == toTraceKey myTraceKey
         isApplyOfMe _ = False
-        loop seen concrete todo =
+        loop seen concrete todo = -- traceShow (seen,concrete, todo) $
           let (applies, concrete') = S.partition (isApply . tip) todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
@@ -154,7 +156,7 @@ solveMutual (Mutual funs) =
         solved = traced (\x -> "solved: \n" ++ prettyTraces x) $ transitiveTraces $ exploreTraces traces 
 
 exploreTraces :: Traces -> Traces
-exploreTraces traces = execState (addTrace $ M.keysSet traces) M.empty
+exploreTraces traces = traced (\x -> "explore: \n" ++ prettyTraces x) $ execState (addTrace $ M.keysSet traces) M.empty
   where addTrace :: S.Set TraceKey -> State Traces ()
         addTrace tks | S.null tks = 
           do traces' <- get
