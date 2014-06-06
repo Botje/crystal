@@ -85,13 +85,6 @@ splitThread (TChain appl var lab body) = (TChain appl var lab . prefix', tip)
   where (prefix', tip) = splitThread body
 splitThread t = (id, t)
 
-data Mutual = Mutual [(TVar, T)] deriving (Data, Typeable, Eq, Show)
-
-solveLetrec :: [TVar] -> [Type] -> [Type]
-solveLetrec vars types = map snd solved
-  where mut = Mutual $ zip vars types
-        Mutual solved = solveMutual mut
-
 typeToTrace :: TVar -> Type -> Trace
 typeToTrace tv (TFun args ef body) = processTrace trace 
   where trace = Trace tk ef S.empty S.empty todo
@@ -149,10 +142,10 @@ processTrace trace = trace & traceSeen     .~ seen'
                                      let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
                                      in S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
 
-solveMutual :: Mutual -> Mutual
-solveMutual (Mutual funs) = 
-     Mutual [ (tv, traceToType t args) | k@(tv, _) <- M.keys traces , let Just t = M.lookup k solved, let Just (TFun args _ _) = lookup tv funs ]
-  where traces = traced (\x -> "input: \n" ++ prettyTraces x) $ M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
+solveLetrec :: [TVar] -> [Type] -> [Type]
+solveLetrec vars types = [traceToType t args | (tv, TFun args _ _) <- funs, let k = (tv, map (const TAny) args), let Just t = M.lookup k solved]
+  where funs   = zip vars types
+        traces = traced (\x -> "input: \n" ++ prettyTraces x) $ M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
         solved = traced (\x -> "solved: \n" ++ prettyTraces x) $ transitiveTraces $ exploreTraces traces 
 
 exploreTraces :: Traces -> Traces
