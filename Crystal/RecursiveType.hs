@@ -48,6 +48,8 @@ unbraid (TIf ls t1 t2 t) | t1 == t2  = unbraid t
                          | isTVar t2 = S.map (TIf ls t1 t2) $ unbraid t
                          | otherwise = S.empty
 unbraid (TChain appl var lab body) = S.map (TChain appl var lab) $ unbraid body
+unbraid (TAppl fun args) = S.fromList [ TAppl fun args' | args' <- sequence (map g args) ]
+  where g (l :*: t) = map (l :*:) $ S.toList $ unbraid t
 unbraid t = S.singleton t
 
 getTFunEffect :: Type -> Effect
@@ -62,8 +64,10 @@ canon t = flatten tests spine
         descend (TIf ls t1 t2 t)
           | t1 == t2 = descend t
           | all (`elem` concreteTypes) [t1, t2] = ([], TError)
+          | t2 == TAny = let (tests, spine) = descend t
+                         in ((ls,t1,t2) : tests, spine)
           | otherwise = let TVar tv = t2
-                            (tests, spine) = descend (subst [(tv, t1)] t)
+                            (tests, spine) = descend (subst [(tv, t2)] t)
                         in ((ls,t1,t2) : tests, spine)
         descend (TChain appl var lab body) =
           let (tests, spine) = descend body
@@ -84,6 +88,12 @@ splitThread (TIf ls t1 t2 t) = (TIf ls t1 t2 . prefix', tip)
 splitThread (TChain appl var lab body) = (TChain appl var lab . prefix', tip)
   where (prefix', tip) = splitThread body
 splitThread t = (id, t)
+
+hasApplies :: Type -> Bool
+hasApplies (TChain _ _ _ _) = True
+hasApplies (TIf _ _ _ t)    = hasApplies t
+hasApplies (TAppl _ _)      = True
+hasApplies _ = False
 
 typeToTrace :: TVar -> Type -> Trace
 typeToTrace tv (TFun args ef body) = processTrace trace 
@@ -120,13 +130,13 @@ processTrace :: Trace -> Trace
 processTrace trace = trace & traceSeen     .~ seen'
                            & traceConcrete .~ concrete'
                            & traceTodo     .~ todo'
-  where (seen', concrete', todo') = loop (trace ^. traceSeen) (trace ^. traceConcrete) (trace ^. traceTodo)
+  where (seen', concrete', todo') = traced (\x -> "processTrace " ++ show myTraceKey ++ "\n" ++ show x) $ loop (trace ^. traceSeen) (trace ^. traceConcrete) (trace ^. traceTodo)
         myTraceKey = trace ^. traceTraceKey
         myArgs = snd myTraceKey
         isApplyOfMe appl@(TAppl _ _) = applyToTraceKey appl == toTraceKey myTraceKey
         isApplyOfMe _ = False
-        loop seen concrete todo = -- traceShow (seen,concrete, todo) $
-          let (applies, concrete') = S.partition (isApply . tip) todo
+        loop seen concrete todo = traceShow (seen,concrete, todo) $
+          let (applies, concrete') = S.partition hasApplies todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
           in if S.null (meApplies `S.difference` seenApplies)
@@ -137,13 +147,20 @@ processTrace trace = trace & traceSeen     .~ seen'
                              (walk oneApply `S.union` restApplies `S.union` otherApplies)
           where walk :: T -> S.Set T
                 walk thread = let (prefix, tip) = splitThread thread
+                                  chained = extractChainVars thread
                               in case tip of 
                                    TAppl (TVar v) args ->
-                                     let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
-                                     in S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
+                                     -- Refuse to expand threads of the form (TChain ... v ... (TAppl self [..., v, ...]))
+                                     if any (\(_ :*: t) -> t `elem` chained) args
+                                        then S.singleton thread -- S.singleton (prefix TAny)
+                                        else let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
+                                             in traced (\_ -> show "walk, expanding " ++ show (applyToTraceKey tip) ++ "\n") $ S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
+
+extractChainVars :: Type -> [Type]
+extractChainVars t = [ TVar v | TChain _ v _ _ <- universe t ] 
 
 solveLetrec :: [TVar] -> [Type] -> [Type]
-solveLetrec vars types = [traceToType t args | (tv, TFun args _ _) <- funs, let k = (tv, map (const TAny) args), let Just t = M.lookup k solved]
+solveLetrec vars types = [ traceToType t args | (tv, TFun args _ _) <- funs, let k = (tv, map (const TAny) args), let Just t = M.lookup k solved]
   where funs   = zip vars types
         traces = traced (\x -> "input: \n" ++ prettyTraces x) $ M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
         solved = traced (\x -> "solved: \n" ++ prettyTraces x) $ transitiveTraces $ exploreTraces traces 
@@ -212,7 +229,7 @@ transitiveTraces traces = traced (\_ -> "transitive input: \n" ++ prettyTraces t
                 considerFix :: Traces -> [Trace] -> Traces
                 considerFix solved traces = traced (\_ -> "after one round: \n" ++ pretty (M.elems expanded)) $
                   if M.null (M.differenceWith diff solved expanded)
-                     then solved
+                     then expanded
                      else considerFix expanded traces
                   where expanded = M.fromList $ map (\trace -> (toTraceKey (trace ^. traceTraceKey), trace)) $ map (expandTrace solved) traces
                         diff t1 t2 = if (t1 ^. traceConcrete) == (t2 ^. traceConcrete) then Nothing else Just t2
