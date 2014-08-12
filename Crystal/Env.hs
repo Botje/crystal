@@ -103,6 +103,14 @@ main_env = carLikes `M.union` M.fromListWith or [
     "fxmod"         --> fun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "gcd"           --> fun [1..2] . require [(TInt,1), (TInt,2)] TInt,
     "gensym"        --> fun []     . require [] TSymbol,
+    "hash-table->alist" --> fun [1..1] . require [(THash,1)] TList,
+    "hash-table-delete!" --> fun [1..2] . require [(THash,1)] TVoid,
+    "hash-table-exists?" --> fun [1..2] . require [(THash,1)] TBool,
+    "hash-table-fold" --> fun [1..3] . require [(THash,1),(fun [4,5,6] TAny,2)] TAny,
+    "hash-table-ref" --> fun [1..2] . require [(THash,1)] TAny,
+    "hash-table-ref/default" --> fun [1..3] . require [(THash,1)] TAny,
+    "hash-table-set!" --> fun [1..3] . require [(THash,1)] TAny,
+    "hash-table-walk" --> fun [1..2] . require [(THash,1),(fun [3,4] TAny,2)] TVoid,
     "inexact?"      --> fun [1..1] . require [] TBool,
     "inexact->exact"--> fun [1..1] . require [(TInt,1)] TInt,
     "integer?"      --> fun [1..1] . require [] TBool,
@@ -115,6 +123,8 @@ main_env = carLikes `M.union` M.fromListWith or [
     "list->vector"  --> fun [1..1] . require [(TList,1)] TVec,
     "list-ref"      --> fun [1..2] . require [(TList,1), (TInt,2)] TAny,
     "log"           --> fun [1..1] . require [(TInt,1)] TInt,
+    "make-hash-table" --> fun [] . require [] THash,
+    "make-hash-table" --> fun [1..2] . require [] THash,
     "make-string"   --> fun [1..1] . require [(TInt,1)] TString,
     "make-vector"   --> fun [1..1] . require [(TInt,1)] TVec,
     "make-vector"   --> fun [1..2] . require [(TInt,1)] TVec,
@@ -155,6 +165,7 @@ main_env = carLikes `M.union` M.fromListWith or [
     "set-car!"      --> fun [1..2] . require [(TPair, 1)] TVoid,
     "set-cdr!"      --> fun [1..2] . require [(TPair, 1)] TVoid,
     "sin"           --> fun [1..1] . require [(TInt,1)] TInt,
+    "sort"          --> fun [1..2] . require [(TList,1),(fun [3,4] TBool,2)] TList,
     "sqrt"          --> fun [1..1] . require [(TInt,1)] TInt,
     "string"        --> makeVarFun "string" (\args -> requireVF [(TChar,a) | a <- args] TString),
     "string-append" --> fun [1..2] . require [(TString,1), (TString,2)] TString,
@@ -212,7 +223,9 @@ main_env = carLikes `M.union` M.fromListWith or [
           fun args typ = TFun args emptyEffect typ
           (LPrim nam :*: fun1 :*: ef1) `or` (LPrim _ :*: fun2 :*: ef2) = LPrim nam :*: Tor [fun1, fun2] :*: ef1 `mappend` ef2
 
+carLikes :: Env
 carLikes = M.fromList [ (id, LPrim id :*: carLikeType id :*: emptyEffect) | n <- [1..4], mid <- replicateM n "ad", let id = "c" ++ mid ++ "r" ]
   where carLikeType id = TFun [1] emptyEffect $ TIf (LPrim id, LVar 1) TPair (TVar 1) TAny
+
 extend :: Ident -> TypedLabel -> Env -> Env
 extend = M.insert

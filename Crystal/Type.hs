@@ -63,7 +63,7 @@ getTypeAndLabel (Expr (t :*: l :*: _) _) = t :*: l
 data Type = TAny
           | TError
           | TVar TVar
-          | TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TList | TNull | TChar | TPort
+          | TInt | TString | TBool | TSymbol | TVoid | TVec | TPair | TList | TNull | TChar | TPort | THash
           | Tor [Type]
           | TFun [TVar] Effect Type
           | TVarFun VarFun
@@ -94,7 +94,7 @@ instance Show VarFun where
   showsPrec _ vf s = "<function " ++ (show $ vfLabel vf) ++ ">" ++ s
 
 concreteTypes :: [Type]
-concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TList, TNull, TChar, TPort]
+concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TList, TNull, TChar, TPort, THash]
 
 simplify :: Type -> Type
 simplify tor@(Tor ts) | length ts' == 1 = head ts'

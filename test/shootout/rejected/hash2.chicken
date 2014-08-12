@@ -22,7 +22,7 @@
 
 ; -------------------------------
 
-(define-constant +hash-tbl-size+ 10000)
+(define +hash-tbl-size+ 10000)
 
 ; --------------
 
