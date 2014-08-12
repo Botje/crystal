@@ -1,0 +1,77 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use IPC::Run qw(run timeout);
+use Test::More;
+
+sub transform {
+	my ($file) = @_;
+	
+	my $cmd = [ "./run.sh", "-@", $file ];
+	my ($out, $err, $ret);
+
+	my $retval = eval { run $cmd, \undef, \$out, \$err, timeout(10); };
+	return $@ ? 0 : !!$retval;
+}
+
+my @tests = <DATA>;
+chomp(@tests);
+
+plan tests => scalar @tests;
+
+for my $file (@tests) {
+	my $ret = transform($file);
+	ok($ret, $file);
+}
+
+__DATA__
+test/gabriel/conform.sch
+test/gabriel/cpstack.sch
+test/gabriel/dderiv.sch
+test/gabriel/deriv.sch
+test/gabriel/destruct.sch
+test/gabriel/div.sch
+test/gabriel/dynamic2.sch
+test/gabriel/dynamic.sch
+test/gabriel/earley.sch
+test/gabriel/fft.sch
+test/gabriel/graphs.sch
+test/gabriel/lattice2.sch
+test/gabriel/lattice.sch
+test/gabriel/mazefun.sch
+test/gabriel/nboyer.sch
+test/gabriel/nestedloop.sch
+test/gabriel/nfa.sch
+test/gabriel/nothing.sch
+test/gabriel/nqueens.sch
+test/gabriel/paraffins.sch
+test/gabriel/peval.sch
+test/gabriel/sboyer.sch
+test/gabriel/scheme2.sch
+test/gabriel/scheme.sch
+test/gabriel/sort1.sch
+test/gabriel/takl.sch
+test/gabriel/takr2.sch
+test/gabriel/takr.sch
+test/gabriel/tak.sch
+test/gabriel/triangle.sch
+test/shootout/ackermann.chicken
+test/shootout/ary.chicken
+test/shootout/binarytrees.chicken
+test/shootout/fannkuch.chicken
+test/shootout/fasta.chicken
+test/shootout/fibo.chicken
+test/shootout/harmonic.chicken
+test/shootout/mandelbrot.chicken
+test/shootout/matrix.chicken
+test/shootout/nestedloop.chicken
+test/shootout/partialsums.chicken
+test/shootout/random.chicken
+test/shootout/recursive.chicken
+test/shootout/reversefile.chicken
+test/shootout/sieve.chicken
+test/shootout/spectralnorm.chicken
+test/shootout/strcat.chicken
+test/shootout/sumcol.chicken
+test/shootout/takfp.chicken
+test/shootout/wc.chicken
