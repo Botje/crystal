@@ -254,7 +254,7 @@ replaceTips traces t =
                             in S.map (canon . prefix . subst toReplace) (trace' ^. traceConcrete)
 
 subst :: [(Int, T)] -> T -> T
-subst m body = transform (apply' m) body
+subst m body = simplify $ transform (apply' m) body
   where apply' m (TVar x) = maybe (TVar x) id $ lookup x m
         apply' m t = t
 
