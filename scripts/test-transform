@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use IPC::Run qw(run timeout);
+use IPC::Run qw(harness run timeout);
 use Test::More;
 
 sub transform {
@@ -10,7 +10,10 @@ sub transform {
 	my $cmd = [ "./run.sh", "-@", $file ];
 	my ($out, $err, $ret);
 
-	my $retval = eval { run $cmd, \undef, \$out, \$err, timeout(10); };
+	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(10)));
+
+	my $retval = eval { run($h); };
+	$h->kill_kill if ($@);
 	return $@ ? 0 : !!$retval;
 }
 
