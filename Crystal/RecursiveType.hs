@@ -64,8 +64,9 @@ canon t = flatten tests spine
         descend (TIf ls t1 t2 t)
           | t1 == t2 = descend t
           | all (`elem` concreteTypes) [t1, t2] = ([], TError)
-          | t2 == TAny = let (tests, spine) = descend t
-                         in ((ls,t1,t2) : tests, spine)
+          | t2 == TAny || isTFun t1 =
+            let (tests, spine) = descend t
+            in ((ls,t1,t2) : tests, spine)
           | otherwise = let TVar tv = t2
                             (tests, spine) = descend (subst [(tv, t1)] t)
                         in ((ls,t1,t2) : tests, spine)
@@ -73,7 +74,7 @@ canon t = flatten tests spine
           let (tests, spine) = descend body
               (varTests, otherTests) = partition (\t -> t ^._3 == TVar var) tests
           in (otherTests, TChain appl var lab $ flatten varTests spine)
-        descend t = ([], t)
+        descend t = ([], simplify t)
         flatten tests t =
           let sorted = nub $ sortBy (compare `on` (^. _3)) tests
           in foldr (\(ls,t1,t2) rest -> TIf ls t1 t2 rest) t sorted 
@@ -125,6 +126,7 @@ specialize tk@(tv, vs) orig = processTrace trace
 applyToTraceKey :: Type -> TraceKey
 applyToTraceKey (TAppl (TVar tv) args) = (tv, types)
   where types = [ if isTVar t then TAny else t | (_ :*: t) <- args ]
+applyToTraceKey t | traceShow t False = undefined
 
 processTrace :: Trace -> Trace
 processTrace trace = trace & traceSeen     .~ seen'

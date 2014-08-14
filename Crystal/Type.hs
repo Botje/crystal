@@ -77,6 +77,9 @@ data VarFun = VarFun { vfName  :: Ident,
                        vfFun   :: [TypeNLabel] -> TLabel -> Type }
                  deriving (Data, Typeable)
 
+isTFun (TFun _ _ _) = True
+isTFun ____________ = False
+
 isTVar (TVar _) = True
 isTVar ________ = False
 
@@ -112,6 +115,12 @@ simplify tif@(TIf l t_1 t_2 t) | trivialIf tif     = t'
 simplify tc@(TChain appl var lab rest) | rest' == rest = tc
                                        | otherwise     = TChain appl var lab rest'
   where rest' = simplify rest
+simplify ta@(TAppl f args) =
+  case f' of
+    TFun _  _  _           -> apply f' args
+    _            | f == f' -> ta -- preserve sharing
+    _                      -> TAppl f' args
+  where f' = simplify f
 simplify t = t
 
 apply :: Type -> [TypeNLabel] -> Type
