@@ -167,7 +167,8 @@ solveLetrec vars types = [ traceToType t args | (tv, TFun args _ _) <- funs, let
 
 exploreTraces :: Traces -> Traces
 exploreTraces traces = traced (\x -> "explore: \n" ++ prettyTraces x) $ execState (addTrace $ M.keysSet traces) M.empty
-  where addTrace :: S.Set TraceKey -> State Traces ()
+  where functionsInScope = S.map fst $ M.keysSet traces
+        addTrace :: S.Set TraceKey -> State Traces ()
         addTrace tks | S.null tks = 
           do traces' <- get
              return ()
@@ -181,8 +182,14 @@ exploreTraces traces = traced (\x -> "explore: \n" ++ prettyTraces x) $ execStat
                             bestTrace = snd $ minimumBy (compare `on` (length . filter (==TAny) . snd . fst)) $ M.assocs suitable
                             trace     = specialize tk bestTrace
                         put $ M.insert tk trace traces'
-                        let applies = S.fromList [ applyToTraceKey t | thread <- S.toList ((trace ^. traceTodo) `S.union` (trace ^. traceConcrete)), t@(TAppl f args) <- universe thread ]
-                        addTrace $ applies `S.union` tks'
+                        -- TODO: intersect traceTV with original traces set
+                        let (todo, concrete) = (trace ^. traceTodo, trace ^. traceConcrete)
+                        let threads = S.toList $ S.union todo concrete
+                        let applies = [ applyToTraceKey t
+                                      | thread <- threads
+                                      , t@(TAppl (TVar tv) args) <- universe thread
+                                      , tv `S.member` functionsInScope ]
+                        addTrace $ (S.fromList applies) `S.union` tks'
 
 expandTrace :: Traces -> Trace -> Trace
 expandTrace solved t = processTrace $
@@ -236,7 +243,12 @@ transitiveTraces traces = traced (\_ -> "transitive input: \n" ++ prettyTraces t
 
 transitiveCalls :: Traces -> M.Map TraceKey (S.Set TraceKey)
 transitiveCalls traces = M.map fixCalls calls
-  where calls = M.map (\t -> S.fromList [ applyToTraceKey ta | thread <- S.toList (view traceConcrete t `S.union` view traceTodo t), ta@(TAppl _ _) <- universe thread ]) traces
+  where functionsInScope = S.map fst $ M.keysSet traces
+        calls = M.map (S.fromList . extractCalls) traces
+        extractCalls t = [ applyToTraceKey ta
+                         | thread <- S.toList (view traceConcrete t `S.union` view traceTodo t)
+                         , ta@(TAppl (TVar tv) _) <- universe thread
+                         , tv `S.member` functionsInScope ]
         fixCalls ts | S.size ts == S.size ts' = ts
                     | otherwise = fixCalls ts'
           where ts' = ts `S.union` S.unions [ s | tk <- S.toList ts, let Just s = M.lookup tk calls ]
