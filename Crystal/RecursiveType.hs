@@ -67,7 +67,7 @@ canon t = flatten tests spine
           | t2 == TAny = let (tests, spine) = descend t
                          in ((ls,t1,t2) : tests, spine)
           | otherwise = let TVar tv = t2
-                            (tests, spine) = descend (subst [(tv, t2)] t)
+                            (tests, spine) = descend (subst [(tv, t1)] t)
                         in ((ls,t1,t2) : tests, spine)
         descend (TChain appl var lab body) =
           let (tests, spine) = descend body
@@ -75,7 +75,7 @@ canon t = flatten tests spine
           in (otherTests, TChain appl var lab $ flatten varTests spine)
         descend t = ([], t)
         flatten tests t =
-          let sorted = sortBy (compare `on` (^. _3)) tests
+          let sorted = nub $ sortBy (compare `on` (^. _3)) tests
           in foldr (\(ls,t1,t2) rest -> TIf ls t1 t2 rest) t sorted 
 
 
@@ -151,7 +151,7 @@ processTrace trace = trace & traceSeen     .~ seen'
                               in case tip of 
                                    TAppl (TVar v) args ->
                                      -- Refuse to expand threads of the form (TChain ... v ... (TAppl self [..., v, ...]))
-                                     if any (\(_ :*: t) -> t `elem` chained) args
+                                     if any (\(_ :*: t) -> t `elem` chained) args || myArgs == (map (^. _2) args)
                                         then S.singleton thread -- S.singleton (prefix TAny)
                                         else let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
                                              in traced (\_ -> show "walk, expanding " ++ show (applyToTraceKey tip) ++ "\n") $ S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
