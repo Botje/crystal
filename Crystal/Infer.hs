@@ -223,21 +223,6 @@ funEffects (TFun _ ef _) = Just ef
 funEffects (TVar _)      = Nothing
 funEffects _             = Just emptyEffect
 
-extendMany :: Ord k => [k] -> [v] -> M.Map k v -> M.Map k v
-extendMany keys vals env = M.fromList (zip keys vals) `M.union` env
-
-apply :: Type -> [TypeNLabel] -> Type
-apply (Tor ts) a_args                   = Tor $ map (flip apply a_args) ts
-apply (TIf l t_t t_a t) a_args          = TIf l t_t t_a (apply t a_args)
-apply vf@(TVarFun _) a_args             = expand (TAppl vf a_args)
-apply t_f@(TFun t_args ef t_bod) a_args = expand (TAppl t_f a_args)
-apply (TVar v) a_args                   = TAppl (TVar v) a_args
-apply _ a_args                          = TError
-
-applies :: Type -> [TypeNLabel] -> Bool
-applies (TFun t_args _ t_bod) a_args = length t_args == length a_args  
-applies _ _ = False
-
 applyPrim :: Type -> [TypeNLabel] -> Type
 applyPrim t_f@(Tor funs) t_args =
   case listToMaybe $ filter (flip applies t_args) funs of
@@ -249,22 +234,6 @@ instantiatePrim :: Ident -> TLabel -> Type -> Type
 instantiatePrim nam lab t = transform f t
   where f (TIf (LPrim blame, cause) t1 t2 rest) | blame == nam = TIf (lab, cause) t1 t2 rest
         f x = x
-
-expand :: Type -> Type
-expand = transform expand'
-  where
-    expand' (TAppl t_f@(TFun t_args _ t_bod) a_args) 
-     | applies t_f a_args = expand $ replace (M.fromList $ zip t_args a_args) t_bod
-     | otherwise          = TError
-    expand' (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
-    expand' typ@(TChain appl var lab body) =
-      case appl of
-           TIf labs tst tgt appl' -> TIf labs tst tgt $ expand' (TChain appl' var lab body)
-           TAppl (TVar _) _       -> typ
-           _                      -> chainWith (\t -> replace (M.singleton var (lab :*: t)) body) appl
-     where applied = simplify appl
-           tl = lab :*: applied
-    expand' typ = typ
 
 chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
 chainWithEffect t forbidden t_c = chain t $ stripLabels forbidden t_c
@@ -280,16 +249,3 @@ leaves :: Type -> Type
 leaves (Tor ts) = Tor $ map leaves ts
 leaves (TIf _ t_t t t_1) = leaves t_1
 leaves t = t
-
-replace :: M.Map TVar TypeNLabel -> Type -> Type
-replace env (TVar var) | Just (l :*: t) <- M.lookup var env = t
-replace env (Tor ts) = Tor $ map (replace env) ts
-replace env (TFun args ef bod) = TFun args ef $ replace (extendMany args (map (\v -> LVar v :*: TVar v) args) env) bod
-replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') (replace env t_1) (replace env t_2) (replace env t_3)
-  where l2' = case l2 of LVar tv | Just (l :*: t) <- M.lookup tv env -> l
-                         x -> x
-replace env (TAppl fun args) = apply (replace env fun) $ map inst args
-  where inst (l :*: TVar tv) | Just (l' :*: t') <- M.lookup tv env = (l' :*: t')
-        inst (l :*: t) = l :*: t
-replace env (TChain t1 var lab t2) = expand (TChain (replace env t1) var lab (replace env t2))
-replace env x = x
