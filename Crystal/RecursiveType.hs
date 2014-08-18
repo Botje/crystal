@@ -73,7 +73,10 @@ canon t = flatten tests spine
         descend (TChain appl var lab body) =
           let (tests, spine) = descend body
               (varTests, otherTests) = partition (\t -> t ^._3 == TVar var) tests
-          in (otherTests, TChain appl var lab $ flatten varTests spine)
+          in case spine of
+               (TChain appl' var' lab' body')
+                | (appl, var, lab) == (appl', var', lab') -> (otherTests, flatten varTests spine)
+               _                                          -> (otherTests, TChain appl var lab $ flatten varTests spine)
         descend t = ([], simplify t)
         flatten tests t =
           let sorted = nub $ sortBy (compare `on` (^. _3)) tests
