@@ -114,7 +114,10 @@ matchKey :: TraceKey -> TraceKey-> Bool
 matchKey (f1, xs1) (f2, xs2) = f1 == f2 && and (zipWith (\t1 t2 -> t1 == TAny || t1 == t2) xs1 xs2)
 
 toTraceKey :: TraceKey -> TraceKey
-toTraceKey (tv, vs) = (tv, [ if isTVar v then TAny else v | v <- vs ])
+toTraceKey (tv, vs) = (tv, [ tk v | v <- vs ])
+  where tk (TVar _)     = TAny
+        tk (TFun _ _ _) = TAny
+        tk v            = v
 
 specialize :: TraceKey -> Trace -> Trace
 specialize tk@(tv, vs) orig = processTrace trace
