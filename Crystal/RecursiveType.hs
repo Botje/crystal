@@ -21,6 +21,7 @@ import Control.Monad.State
 import Control.Applicative
 import Test.QuickCheck
 import Text.Show
+import Text.PrettyPrint
 
 import Crystal.Trace
 import Crystal.Tuple
@@ -140,7 +141,7 @@ processTrace trace = trace & traceSeen     .~ seen'
         myArgs = snd myTraceKey
         isApplyOfMe appl@(TAppl _ _) = applyToTraceKey appl == toTraceKey myTraceKey
         isApplyOfMe _ = False
-        loop seen concrete todo = traceShow (seen,concrete, todo) $
+        loop seen concrete todo = traced (\_ -> renderTriplet (seen,concrete, todo)) $
           let (applies, concrete') = S.partition hasApplies todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
@@ -160,6 +161,16 @@ processTrace trace = trace & traceSeen     .~ seen'
                                         then S.singleton thread -- S.singleton (prefix TAny)
                                         else let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
                                              in traced (\_ -> show "walk, expanding " ++ show (applyToTraceKey tip) ++ "\n") $ S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
+
+renderTriplet :: (S.Set Type, S.Set Type, S.Set Type) -> String
+renderTriplet (seen, concrete, todo) = renderStyle (style{lineLength=300}) (r "seen" seen $+$ r "concrete" concrete $+$ r "todo" todo)
+  where r head set | S.null set = text head <+> text "[]"
+                   | otherwise  = text head $$ nest 2 (brackets (vcat $ map rr $ S.toList set))
+        rr (TIf labs t1 t2 t) = hsep [text "TIf", text (show labs), text (show t1), text (show t2)] $$ nest 2 (parens $ rr t)
+        rr (TChain appl var labs t) = hsep [text "TChain", text (show appl), text (show var), text (show labs)] $$ nest 2 (parens $ rr t)
+        rr t = text (show t)
+
+
 
 extractChainVars :: Type -> [Type]
 extractChainVars t = [ TVar v | TChain _ v _ _ <- universe t ] 
