@@ -1,6 +1,7 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
 module Crystal.Type  where
 
+import Control.Applicative
 import Control.Lens hiding (transform)
 import Control.Monad
 import Data.Function
@@ -8,6 +9,7 @@ import Data.Generics
 import Data.Generics.Biplate
 import Data.List
 import Data.Maybe
+import Data.Monoid
 import Control.Monad.State
 import Control.Monad.Reader
 import qualified Data.Map as M
@@ -77,6 +79,9 @@ data VarFun = VarFun { vfName  :: Ident,
                        vfFun   :: [TypeNLabel] -> TLabel -> Type }
                  deriving (Data, Typeable)
 
+isTor (Tor _) = True
+isTor _______ = False
+
 isTFun (TFun _ _ _) = True
 isTFun ____________ = False
 
@@ -99,29 +104,40 @@ instance Show VarFun where
 concreteTypes :: [Type]
 concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TList, TNull, TChar, TPort, THash]
 
+plus :: Maybe Type -> Type -> Maybe Type
+plus mt t = mt `mplus` Just t
+
 simplify :: Type -> Type
-simplify tor@(Tor ts) | length ts' == 1 = head ts'
-                      | ts == ts'       = tor -- preserve sharing
-                      | otherwise       = Tor ts'
-  where ts' = nub $ concatMap (expandOr . simplify) ts
-simplify tf@(TFun args ef body) | body == simplified = tf -- preserve sharing
-                                | otherwise          = TFun args ef simplified
-  where simplified = simplify body
-simplify tif@(TIf l t_1 t_2 t) | trivialIf tif     = t'
-                               | tif == simplified = tif -- preserve sharing
-                               | otherwise         = simplified
-  where (t_1', t_2', t') = (simplify t_1, simplify t_2, simplify t)
-        simplified = TIf l t_1 t_2' t'
-simplify tc@(TChain appl var lab rest) | rest' == rest = tc
-                                       | otherwise     = TChain appl var lab rest'
-  where rest' = simplify rest
-simplify ta@(TAppl f args) =
-  case f' of
-    TFun _  _  _           -> apply f' args
-    _            | f == f' -> ta -- preserve sharing
-    _                      -> TAppl f' args
-  where f' = simplify f
-simplify t = t
+simplify t = maybe t id $ simp t
+  where simp (Tor ts) =
+          if any isJust ts' || any isTor ts''
+             then if S.size set == 1
+                     then Just $ S.findMin set
+                     else Just $ Tor $ S.toList set
+             else Nothing
+          where ts' = map simp ts
+                ts'' = zipWith (\mt t -> maybe t id mt) ts' ts
+                set = S.fromList $ concatMap expandOr ts''
+        simp tf@(TFun args ef body) | isNothing body' = Nothing
+                                    | otherwise       = liftA (TFun args ef) body'
+          where body' = simp body
+        simp tif@(TIf l t_1 t_2 t) | trivialIf tif = t' `plus` t
+                                   | isNothing all = Nothing
+                                   | otherwise     = liftA3 (TIf l) (t_1' `plus` t_1) (t_2' `plus` t_2) (t' `plus` t)
+          where (t_1', t_2', t') = (simp t_1, simp t_2, simp t)
+                all = t_1' `mplus` t_2' `mplus` t'
+        simp tc@(TChain appl var lab rest) | isNothing all = Nothing
+                                           | otherwise     = liftA2 (\a r -> TChain a var lab r) (appl' `plus` appl) (rest' `plus` rest)
+          where (appl', rest') = (simp appl, simp rest)
+                all = appl' `mplus` rest'
+        simp ta@(TAppl f args) =
+          case fz of
+            (TFun _ _ _) -> Just $ apply fz args
+            (TVarFun vf) -> Just $ apply fz args
+            _            -> Nothing
+          where f'      = simp f
+                Just fz = f' `plus` f
+        simp t = Nothing
 
 apply :: Type -> [TypeNLabel] -> Type
 apply (Tor ts) a_args                   = Tor $ map (flip apply a_args) ts
@@ -165,7 +181,7 @@ expand = transform expand'
     expand' typ = typ
 
 expandOr :: Type -> [Type]
-expandOr (Tor xs) = xs
+expandOr (Tor xs) = concatMap expandOr xs
 expandOr t = [t]
 
 trivialIf :: Type -> Bool
