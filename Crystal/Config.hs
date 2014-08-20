@@ -29,8 +29,8 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                                                   True &= help "Generate mobility stats" &= name "stats" &= explicit ]
                      , _cfgDumpTypes = enum [ False &= help "Don't dump top-level types (default)" &= name "no-types" &= explicit,
                                               True  &= help "Dump top-level types" &= name "types" &= explicit ]
-                     , _cfgDumpTree = enum [ False &= ignore,
-                                             True  &= help "Dump results of intermediate steps" &= name "d" &= explicit ]
+                     , _cfgDumpTree = enum [ False &= name "no-tree" &= ignore,
+                                             True  &= help "Dump results of intermediate steps" &= name "tree" &= explicit ]
                      , _cfgDumpImmediately = enum [ False &= ignore,
                                              True  &= help "Dump results immediately" &= name "i" &= explicit ]
                      , _cfgAnnotateLabels = enum [ False &= ignore,
