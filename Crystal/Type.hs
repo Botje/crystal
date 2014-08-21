@@ -132,11 +132,15 @@ simplify t = maybe t id $ simp t
                 all = appl' `mplus` rest'
         simp ta@(TAppl f args) =
           case fz of
-            (TFun _ _ _) -> Just $ apply fz args
-            (TVarFun vf) -> Just $ apply fz args
-            _            -> Nothing
-          where f'      = simp f
-                Just fz = f' `plus` f
+            (TFun _ _ _) -> Just $ apply fz argsz
+            (TVarFun vf) -> Just $ apply fz argsz
+            _ | isNothing all -> Nothing
+            _            -> Just $ TAppl fz argsz
+          where (f', args') = (simp f, map (simp . view _2) args)
+                all = foldl' mplus f' args'
+                (fz, argsz) = (maybe f id f', zipWith g args' args)
+                g Nothing  tl = tl
+                g (Just t) tl = tl & _2 .~ t
         simp t = Nothing
 
 apply :: Type -> [TypeNLabel] -> Type
