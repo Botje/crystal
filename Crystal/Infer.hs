@@ -239,11 +239,32 @@ chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
 chainWithEffect t forbidden t_c = chain t $ stripLabels forbidden t_c
 
 stripLabels :: S.Set TLabel -> Type -> Type
-stripLabels forbidden t = simplify $ transform strip t
-  where strip tif@(TIf (blame, cause) t_t t_1 t)
-              | cause `S.member` forbidden = t
-              | otherwise                  = tif
-        strip t = t
+stripLabels forbidden t = maybe t' id $ strip t'
+  where t' = simplify t
+        a `plus` b = a `mplus` Just b
+        strip to@(Tor ts) | isNothing all = Nothing
+                          | otherwise     = Just $ Tor (zipWith f ts' ts)
+          where ts' = map strip ts
+                all = foldl' mplus Nothing ts'
+                f mt t = maybe t id mt
+        strip tf@(TFun args ef body) = TFun args ef `fmap` strip body
+        strip tif@(TIf (blame, cause) t_t t_1 t)
+              | cause `S.member` forbidden = t' `plus` t
+              | isNothing all              = Nothing
+              | otherwise                  = liftA3 (TIf (blame, cause)) (t_t' `plus` t_t) (t_1' `plus` t_1) (t' `plus` t)
+          where (t_t', t_1', t') = (strip t_t, strip t_1, strip t)
+                all = t_t' `mplus` t_1' `mplus` t'
+        strip ta@(TAppl fun tls) | isNothing all = Nothing
+                                 | otherwise     = Just $ TAppl (maybe fun id fun') (zipWith f ts' tls)
+          where (fun', ts') = (strip fun, map (strip . view _2) tls)
+                all = foldl' mplus fun' ts'
+                f Nothing tl = tl
+                f (Just t) tl = tl & _2 .~ t
+        strip tc@(TChain appl var lab body) | isNothing all = Nothing
+                                            | otherwise     = liftA2 (\a b -> TChain a var lab b) (appl' `plus` appl) (body' `plus` body)
+          where (appl', body') = (strip appl, strip body)
+                all = appl' `mplus` body'
+        strip t = Nothing
 
 leaves :: Type -> Type
 leaves (Tor ts) = Tor $ map leaves ts
