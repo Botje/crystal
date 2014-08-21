@@ -1,0 +1,11 @@
+(define (cpstak x y z)
+  (define (tak x y z k)
+    (if (not (< y x))
+        (k z)
+        (tak (- x 1)
+             y
+             z
+             (tak 1 2 3 k))))
+	(tak x y z (lambda (a) a)))
+ 
+(time (cpstak 18 12 2))

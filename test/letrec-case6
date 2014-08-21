@@ -1,0 +1,11 @@
+(define (even n)
+	(if (= n 0)
+		#t
+		(not (odd (- n 1)))))
+
+(define (odd n)
+  (if (= n 0)
+	  #f
+		(not (even (- n 1)))))
+
+(even 42)

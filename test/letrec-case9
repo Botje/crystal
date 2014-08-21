@@ -1,0 +1,2 @@
+(define (f g) (if #t (f sqrt) (g 2)))
+5
