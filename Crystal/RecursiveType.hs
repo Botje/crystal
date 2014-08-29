@@ -163,7 +163,10 @@ processTrace trace = trace & traceSeen     .~ seen'
                                      if any (\(_ :*: t) -> t `elem` chained) args || myArgs == (map (^. _2) args)
                                         then S.singleton thread -- S.singleton (prefix TAny)
                                         else let toReplace = [ (tv, new) | (old, new) <- zip myArgs (map (^. _2) args), old /= new, let TVar tv = old]
-                                             in traced (\_ -> show "walk, expanding " ++ show (applyToTraceKey tip) ++ "\n") $ S.map (canon . prefix) $ S.map (subst toReplace) $ S.unions [seen, concrete, todo]
+                                             in traced (\_ -> "walk, expanding " ++ show (applyToTraceKey tip) ++ "\n") $
+                                                  S.map (canon . prefix) $
+                                                    S.map (subst toReplace) $
+                                                      S.unions [seen, concrete, todo]
 
 renderTriplet :: (S.Set Type, S.Set Type, S.Set Type) -> String
 renderTriplet (seen, concrete, todo) = renderStyle (style{lineLength=300}) (r "seen" seen $+$ r "concrete" concrete $+$ r "todo" todo)
@@ -179,7 +182,9 @@ extractChainVars :: Type -> [Type]
 extractChainVars t = [ TVar v | TChain _ v _ _ <- universe t ] 
 
 solveLetrec :: [TVar] -> [Type] -> [Type]
-solveLetrec vars types = [ traceToType t args | (tv, TFun args _ _) <- funs, let k = (tv, map (const TAny) args), let Just t = M.lookup k solved]
+solveLetrec vars types = [ traceToType t args | (tv, TFun args _ _) <- funs
+                                              , let k = (tv, map (const TAny) args)
+                                              , let Just t = M.lookup k solved]
   where funs   = zip vars types
         traces = traced (\x -> "input: \n" ++ prettyTraces x) $ M.fromList [ (toTraceKey (trace ^. traceTraceKey), trace) | (tv, t) <- funs, let trace = typeToTrace tv t]
         solved = traced (\x -> "solved: \n" ++ prettyTraces x) $ transitiveTraces $ exploreTraces traces 
@@ -239,13 +244,13 @@ transitiveTraces traces = traced (\_ -> "transitive input: \n" ++ prettyTraces t
   where calls = transitiveCalls traces
         loop traces | M.null traces = return ()
         loop traces = do solved <- get
-                         let seen = M.keysSet solved
-                             working = M.mapWithKey (\k _ -> fromJust (M.lookup k calls) `S.difference` seen) traces
+                         let seen             = M.keysSet solved
+                             working          = M.mapWithKey (\k _ -> fromJust (M.lookup k calls) `S.difference` seen) traces
                              keyFun (tk, tks) = (S.size tks, not $ tk `S.member` tks)
-                             next    = minimumBy (compare `on` keyFun) $ M.toList working
-                             (tk, called) = next
-                             tks = tk : S.toList (S.delete tk called)
-                             workTraces = [ expandTrace solved trace | tk <- tks, let Just trace = M.lookup tk traces ]
+                             next             = minimumBy (compare `on` keyFun) $ M.toList working
+                             (tk, called)     = next
+                             tks              = tk : S.toList (S.delete tk called)
+                             workTraces       = [ expandTrace solved trace | tk <- tks, let Just trace = M.lookup tk traces ]
                          consider workTraces
                          loop $ M.difference traces $ M.fromList $ zip tks (repeat undefined)
         consider :: [Trace] -> State Traces ()
