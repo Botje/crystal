@@ -10,7 +10,7 @@ sub transform {
 	my $cmd = [ "./run.sh", "-@", $file ];
 	my ($out, $err, $ret);
 
-	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(10)));
+	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(20)));
 
 	my $retval = eval { run($h); };
 	$h->kill_kill if ($@);

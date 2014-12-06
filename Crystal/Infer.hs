@@ -239,6 +239,7 @@ chainWithEffect :: Type -> S.Set TLabel -> Type -> Type
 chainWithEffect t forbidden t_c = chain t $ stripLabels forbidden t_c
 
 stripLabels :: S.Set TLabel -> Type -> Type
+stripLabels set t | S.null set = simplify t
 stripLabels forbidden t = maybe t' id $ strip t'
   where t' = simplify t
         a `plus` b = a `mplus` Just b

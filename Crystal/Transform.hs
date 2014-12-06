@@ -39,9 +39,7 @@ denestLet expr = return $ rewriteBi denest expr
   where denest :: Expr Label -> Maybe (Expr Label)
         denest (Expr l (Let [(id, expr)] bod))
                   | Expr l_i (Let [(id_i, expr_i)] bod_i) <- expr
-                  , "tmp-" `isPrefixOf` id
-                  , "tmp-" `isPrefixOf` id_i =
-                   Just $ Expr l_i $ Let [(id_i, expr_i)] (Expr l $ Let [(id, bod_i)] bod)
+                  = Just $ Expr l_i $ Let [(id_i, expr_i)] (Expr l $ Let [(id, bod_i)] bod)
         denest x = Nothing
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)

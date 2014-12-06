@@ -155,7 +155,6 @@ applies :: Type -> [TypeNLabel] -> Bool
 applies (TFun t_args _ t_bod) a_args = length t_args == length a_args  
 applies _ _ = False
 
-
 replace :: M.Map TVar TypeNLabel -> Type -> Type
 replace env (TVar var) | Just (l :*: t) <- M.lookup var env = t
 replace env (Tor ts) = Tor $ map (replace env) ts
@@ -168,18 +167,19 @@ replace env (TAppl fun args) = apply (replace env fun) $ map inst args
         inst (l :*: t) = l :*: t
 replace env (TChain t1 var lab t2) = expand (TChain (replace env t1) var lab (replace env t2))
 replace env x = x
+
 expand :: Type -> Type
-expand = transform expand'
+expand t = expand' t
   where
     expand' (TAppl t_f@(TFun t_args _ t_bod) a_args) 
-     | applies t_f a_args = expand $ replace (M.fromList $ zip t_args a_args) t_bod
+     | applies t_f a_args = transform expand' $ replace (M.fromList $ zip t_args a_args) t_bod
      | otherwise          = TError
     expand' (TAppl (TVarFun (VarFun _ lab vf)) a_args) = vf a_args lab
     expand' typ@(TChain appl var lab body) =
       case appl of
            TIf labs tst tgt appl' -> TIf labs tst tgt $ expand' (TChain appl' var lab body)
            TAppl (TVar _) _       -> typ
-           _                      -> chainWith (\t -> replace (M.singleton var (lab :*: t)) body) appl
+           _                      -> chainWith (\t -> transform expand' $ replace (M.singleton var (lab :*: t)) body) $ expand' appl
      where applied = simplify appl
            tl = lab :*: applied
     expand' typ = typ

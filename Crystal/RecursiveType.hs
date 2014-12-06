@@ -48,7 +48,8 @@ unbraid (Tor ts) = S.unions $ map unbraid ts
 unbraid (TIf ls t1 t2 t) | t1 == t2  = unbraid t
                          | isTVar t2 = S.map (TIf ls t1 t2) $ unbraid t
                          | otherwise = S.empty
-unbraid (TChain appl var lab body) = S.map (TChain appl var lab) $ unbraid body
+unbraid (TChain appl var lab body) = S.fromList [ TChain appl' var lab body' | (appl', body') <- crossed ]
+  where crossed = liftM2 (,) (S.toList (unbraid appl)) (S.toList (unbraid body))
 unbraid (TAppl fun args) = S.fromList [ TAppl fun args' | args' <- sequence (map g args) ]
   where g (l :*: t) = map (l :*:) $ S.toList $ unbraid t
 unbraid t = S.singleton t
@@ -63,9 +64,9 @@ canon :: T -> T
 canon t = flatten tests spine
   where (tests, spine) = descend t
         descend (TIf ls t1 t2 t)
-          | t1 == t2 = descend t
+          | t1 == t2 || t2 == TAny = descend t
           | all (`elem` concreteTypes) [t1, t2] = ([], TError)
-          | t2 == TAny || isTFun t1 =
+          | isTFun t1 =
             let (tests, spine) = descend t
             in ((ls,t1,t2) : tests, spine)
           | otherwise = let TVar tv = t2
@@ -131,20 +132,21 @@ specialize tk@(tv, vs) orig = processTrace trace
                      & traceTodo     .~ S.map (canon . subst toSpecialize) allTraces
 
 applyToTraceKey :: Type -> TraceKey
-applyToTraceKey (TAppl (TVar tv) args) = (tv, types)
-  where types = [ if isTVar t then TAny else t | (_ :*: t) <- args ]
+applyToTraceKey (TAppl (TVar tv) args) = toTraceKey (tv, types)
+  where types = [ t | (_ :*: t) <- args ]
 applyToTraceKey t | traceShow t False = undefined
 
 processTrace :: Trace -> Trace
 processTrace trace = trace & traceSeen     .~ seen'
                            & traceConcrete .~ concrete'
                            & traceTodo     .~ todo'
-  where (seen', concrete', todo') = traced (\x -> "processTrace " ++ show myTraceKey ++ "\n" ++ show x) $ loop (trace ^. traceSeen) (trace ^. traceConcrete) (trace ^. traceTodo)
+  where (seen, concrete, todo) = (trace ^. traceSeen, trace ^. traceConcrete, trace ^. traceTodo)
+        (seen', concrete', todo') = loop seen concrete todo 
         myTraceKey = trace ^. traceTraceKey
         myArgs = snd myTraceKey
         isApplyOfMe appl@(TAppl _ _) = applyToTraceKey appl == toTraceKey myTraceKey
         isApplyOfMe _ = False
-        loop seen concrete todo = traced (\_ -> renderTriplet (seen,concrete, todo)) $
+        loop seen concrete todo = traced (\_ -> "processTrace (loop) " ++ show myTraceKey ++ "\n" ++ renderTriplet (seen,concrete, todo)) $
           let (applies, concrete') = S.partition hasApplies todo
               (seenApplies, todoApplies) = S.partition (`S.member` seen) applies
               (meApplies, otherApplies) = S.partition (isApplyOfMe . tip) todoApplies
@@ -216,10 +218,11 @@ exploreTraces traces = traced (\x -> "explore: \n" ++ prettyTraces x) $ execStat
                         addTrace $ (S.fromList applies) `S.union` tks'
 
 expandTrace :: Traces -> Trace -> Trace
-expandTrace solved t = processTrace $
-                         t & traceConcrete %~ (S.map canon . S.unions . map expand . S.toList)
-                           & traceSeen     %~ (S.map canon . S.unions . map expand . S.toList)
-                           & traceTodo     %~ (S.map canon . S.unions . map expand . S.toList)
+expandTrace solved t = traced (\_ -> "expandTrace " ++ show (t ^. traceTraceKey)) $
+                         processTrace $
+                           t & traceConcrete %~ (S.map canon . S.unions . map expand . S.toList)
+                             & traceSeen     %~ (S.map canon . S.unions . map expand . S.toList)
+                             & traceTodo     %~ (S.map canon . S.unions . map expand . S.toList)
   where expand (TIf ls t1 t2 t) = S.map (TIf ls t1 t2) $ expand t
         expand (TChain appl var lab body) =
           case M.lookup (applyToTraceKey appl) solved of
@@ -290,7 +293,8 @@ replaceTips traces t =
                             in S.map (canon . prefix . subst toReplace) (trace' ^. traceConcrete)
 
 subst :: [(Int, T)] -> T -> T
-subst m body = simplify $ transform (apply' m) body
+subst [] body = body
+subst m body = traced (\_ -> "Replacing " ++ show m) $ simplify $ transform (apply' m) body
   where apply' m (TVar x) = maybe (TVar x) id $ lookup x m
         apply' m t = t
 
