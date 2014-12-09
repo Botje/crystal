@@ -114,9 +114,9 @@ simplifyWithBot :: Type -> Type
 simplifyWithBot = simplifyPlus True
 
 simplifyPlus :: Bool -> Type -> Type
-simplifyPlus doBot t = maybe t id $ simp t
+simplifyPlus doBot t = maybe t id $ simp S.empty t
   where botAndJTE x = doBot && x == Just TError
-        simp (Tor ts) =
+        simp tested (Tor ts) =
           if any isJust ts' || any isTor ts'' || length ts /= S.size set
              then if S.null set
                      then Just TError
@@ -124,38 +124,42 @@ simplifyPlus doBot t = maybe t id $ simp t
                              then Just $ S.findMin set
                              else Just $ Tor $ S.toList set
              else Nothing
-          where ts' = map simp ts
+          where ts' = map (simp tested) ts
                 ts'' = zipWith (\mt t -> maybe t id mt) ts' ts
                 set = (if doBot then S.delete TError else id) $ S.fromList $ concatMap expandOr ts''
-        simp tf@(TFun args ef body) | isNothing body' = Nothing
-                                    | otherwise       = liftA (TFun args ef) body'
-          where body' = simp body
-        simp tif@(TIf l t_1 t_2 t) | trivialIf tif = t' `plus` t
-                                   | botAndJTE (t_2' `plus` t_2) = Just TError
-                                   | botAndJTE (t' `plus` t) = Just TError
-                                   | isNothing all = Nothing
-                                   | otherwise     = liftA3 (TIf l) (t_1' `plus` t_1) (t_2' `plus` t_2) (t' `plus` t)
-          where (t_1', t_2', t') = (simp t_1, simp t_2, simp t)
+        simp tested tf@(TFun args ef body) | isNothing body' = Nothing
+                                           | otherwise       = liftA (TFun args ef) body'
+          where body' = simp tested body
+        simp tested tif@(TIf l t_1 t_2 t) | trivialIf tif = t_z
+                                          | myTest `S.member` tested = t_z
+                                          | botAndJTE t_2z = Just TError
+                                          | botAndJTE t_z = Just TError
+                                          | isNothing all = Nothing
+                                          | otherwise     = liftA3 (TIf l) t_1z t_2z t_z
+          where (t_1', t_2', t') = (simp tested t_1, simp tested t_2, simp tested' t)
+                (t_1z, t_2z, t_z) = (t_1' `plus` t_1, t_2' `plus` t_2, t' `plus` t)
                 all = t_1' `mplus` t_2' `mplus` t'
-        simp tc@(TChain appl var lab rest) | botAndJTE applz = Just TError
-                                           | isNothing all = Nothing
-                                           | otherwise     = liftA2 (\a r -> TChain a var lab r) applz restz
-          where (appl', rest') = (simp appl, simp rest)
+                myTest = (l, fromJust t_1z, fromJust t_2z)
+                tested' = S.insert myTest tested
+        simp tested tc@(TChain appl var lab rest) | botAndJTE applz = Just TError
+                                                  | isNothing all = Nothing
+                                                  | otherwise     = liftA2 (\a r -> TChain a var lab r) applz restz
+          where (appl', rest') = (simp tested appl, simp tested rest)
                 all = appl' `mplus` rest'
                 (applz, restz) = (appl' `plus` appl, rest' `plus` rest)
-        simp ta@(TAppl f args) =
+        simp tested ta@(TAppl f args) =
           case fz of
             TError | doBot    -> Just TError
             (TFun _ _ _)      -> Just $ apply fz argsz
             (TVarFun vf)      -> Just $ apply fz argsz
             _ | isNothing all -> Nothing
             _                 -> Just $ TAppl fz argsz
-          where (f', args') = (simp f, map (simp . view _2) args)
+          where (f', args') = (simp tested f, map (simp tested . view _2) args)
                 all = foldl' mplus f' args'
                 (fz, argsz) = (maybe f id f', zipWith g args' args)
                 g Nothing  tl = tl
                 g (Just t) tl = tl & _2 .~ t
-        simp t = Nothing
+        simp tested t = Nothing
 
 apply :: Type -> [TypeNLabel] -> Type
 apply (Tor ts) a_args                   = Tor $ map (flip apply a_args) ts
