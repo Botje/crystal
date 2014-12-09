@@ -108,34 +108,48 @@ plus :: Maybe Type -> Type -> Maybe Type
 plus mt t = mt `mplus` Just t
 
 simplify :: Type -> Type
-simplify t = maybe t id $ simp t
-  where simp (Tor ts) =
-          if any isJust ts' || any isTor ts''
-             then if S.size set == 1
-                     then Just $ S.findMin set
-                     else Just $ Tor $ S.toList set
+simplify = simplifyPlus False
+
+simplifyWithBot :: Type -> Type
+simplifyWithBot = simplifyPlus True
+
+simplifyPlus :: Bool -> Type -> Type
+simplifyPlus doBot t = maybe t id $ simp t
+  where botAndJTE x = doBot && x == Just TError
+        simp (Tor ts) =
+          if any isJust ts' || any isTor ts'' || length ts /= S.size set
+             then if S.null set
+                     then Just TError
+                     else if S.size set == 1
+                             then Just $ S.findMin set
+                             else Just $ Tor $ S.toList set
              else Nothing
           where ts' = map simp ts
                 ts'' = zipWith (\mt t -> maybe t id mt) ts' ts
-                set = S.fromList $ concatMap expandOr ts''
+                set = (if doBot then S.delete TError else id) $ S.fromList $ concatMap expandOr ts''
         simp tf@(TFun args ef body) | isNothing body' = Nothing
                                     | otherwise       = liftA (TFun args ef) body'
           where body' = simp body
         simp tif@(TIf l t_1 t_2 t) | trivialIf tif = t' `plus` t
+                                   | botAndJTE (t_2' `plus` t_2) = Just TError
+                                   | botAndJTE (t' `plus` t) = Just TError
                                    | isNothing all = Nothing
                                    | otherwise     = liftA3 (TIf l) (t_1' `plus` t_1) (t_2' `plus` t_2) (t' `plus` t)
           where (t_1', t_2', t') = (simp t_1, simp t_2, simp t)
                 all = t_1' `mplus` t_2' `mplus` t'
-        simp tc@(TChain appl var lab rest) | isNothing all = Nothing
-                                           | otherwise     = liftA2 (\a r -> TChain a var lab r) (appl' `plus` appl) (rest' `plus` rest)
+        simp tc@(TChain appl var lab rest) | botAndJTE applz = Just TError
+                                           | isNothing all = Nothing
+                                           | otherwise     = liftA2 (\a r -> TChain a var lab r) applz restz
           where (appl', rest') = (simp appl, simp rest)
                 all = appl' `mplus` rest'
+                (applz, restz) = (appl' `plus` appl, rest' `plus` rest)
         simp ta@(TAppl f args) =
           case fz of
-            (TFun _ _ _) -> Just $ apply fz argsz
-            (TVarFun vf) -> Just $ apply fz argsz
+            TError | doBot    -> Just TError
+            (TFun _ _ _)      -> Just $ apply fz argsz
+            (TVarFun vf)      -> Just $ apply fz argsz
             _ | isNothing all -> Nothing
-            _            -> Just $ TAppl fz argsz
+            _                 -> Just $ TAppl fz argsz
           where (f', args') = (simp f, map (simp . view _2) args)
                 all = foldl' mplus f' args'
                 (fz, argsz) = (maybe f id f', zipWith g args' args)
