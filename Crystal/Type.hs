@@ -114,7 +114,7 @@ simplifyWithBot :: Type -> Type
 simplifyWithBot = simplifyPlus True
 
 simplifyPlus :: Bool -> Type -> Type
-simplifyPlus doBot t = maybe t id $ simp S.empty t
+simplifyPlus doBot t = maybe t id $ simp M.empty t
   where botAndJTE x = doBot && x == Just TError
         simp tested (Tor ts) =
           if any isJust ts' || any isTor ts'' || length ts /= S.size set
@@ -130,17 +130,15 @@ simplifyPlus doBot t = maybe t id $ simp S.empty t
         simp tested tf@(TFun args ef body) | isNothing body' = Nothing
                                            | otherwise       = liftA (TFun args ef) body'
           where body' = simp tested body
-        simp tested tif@(TIf l t_1 t_2 t) | trivialIf tif = t_z
-                                          | myTest `S.member` tested = t_z
-                                          | botAndJTE t_2z = Just TError
-                                          | botAndJTE t_z = Just TError
-                                          | isNothing all = Nothing
-                                          | otherwise     = liftA3 (TIf l) t_1z t_2z t_z
-          where (t_1', t_2', t') = (simp tested t_1, simp tested t_2, simp tested' t)
-                (t_1z, t_2z, t_z) = (t_1' `plus` t_1, t_2' `plus` t_2, t' `plus` t)
-                all = t_1' `mplus` t_2' `mplus` t'
-                myTest = (l, fromJust t_1z, fromJust t_2z)
-                tested' = S.insert myTest tested
+        simp tested (TIf l t_1 t_2 t) | botAndJTE t_2z = Just TError
+                                      | trivialIf t_1 (fromJust t_2z) = simp tested t `plus` t
+                                      | doBot && not (isTVar (fromJust t_2z)) = Just TError
+                                      | isNothing all = Nothing
+                                      | otherwise     = liftA2 (TIf l t_1) t_2z t_z
+          where (t_2', t') = (simp tested t_2, simp tested' t)
+                (t_2z, t_z) = (t_2' `plus` t_2, t' `plus` t)
+                all = t_2' `mplus` t'
+                tested' = M.insert t_2 t_1 tested
         simp tested tc@(TChain appl var lab rest) | botAndJTE applz = Just TError
                                                   | isNothing all = Nothing
                                                   | otherwise     = liftA2 (\a r -> TChain a var lab r) applz restz
@@ -159,6 +157,7 @@ simplifyPlus doBot t = maybe t id $ simp S.empty t
                 (fz, argsz) = (maybe f id f', zipWith g args' args)
                 g Nothing  tl = tl
                 g (Just t) tl = tl & _2 .~ t
+        simp tested t@(TVar tv) | doBot = M.lookup t tested
         simp tested t = Nothing
 
 apply :: Type -> [TypeNLabel] -> Type
@@ -206,12 +205,12 @@ expandOr :: Type -> [Type]
 expandOr (Tor xs) = concatMap expandOr xs
 expandOr t = [t]
 
-trivialIf :: Type -> Bool
-trivialIf (TIf _ (TFun args_1 _ TAny) (TFun args_2 _ _) _) = length args_1 == length args_2
-trivialIf (TIf _ (TFun _ _ _) (TVarFun _) _) = True
-trivialIf (TIf _ TPair TList _) = True
-trivialIf (TIf _ x y _) | x == y = True
-trivialIf _ = False
+trivialIf :: Type -> Type -> Bool
+trivialIf (TFun args_1 _ TAny) (TFun args_2 _ _) = length args_1 == length args_2
+trivialIf (TFun _ _ _) (TVarFun _) = True
+trivialIf TPair TList = True
+trivialIf x y | x == y = True
+trivialIf _ _ = False
 
 chain :: Type -> Type -> Type
 chain t1 t2 = chainWith (const t2) t1
