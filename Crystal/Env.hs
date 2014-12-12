@@ -63,7 +63,7 @@ main_env = carLikes `M.union` M.fromListWith or [
     "close-output-port" --> fun [1..1] . require [(TPort, 1)] TVoid,
     "complex?"      --> fun [1..1] . require [] TBool,
     "cons"          --> fun [1..2] . require [(TList,2)] TList,
-    "cons"          --> fun [1..2] . require [] TPair,
+--     "cons"          --> fun [1..2] . require [] TPair,
     "cos"           --> fun [1..1] . require [(TInt,1)] TInt,
     "current-input-port" --> fun [1..1] . require [] TPort,
     "current-output-port" --> fun [1..1] . require [] TPort,
