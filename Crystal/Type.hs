@@ -118,24 +118,25 @@ simplifyPlus doBot t = maybe t id $ simp M.empty t
   where botAndJTE x = doBot && x == Just TError
         simp tested (Tor ts) =
           if changed
-             then if 1 == length ts'
-                     then Just $ head ts'
-                     else Just $ Tor ts'
+             then case S.size seen3 of
+                       0 -> Just TError
+                       1 -> Just $ S.findMin seen3
+                       _ -> Just $ Tor (S.toList seen3)
              else Nothing
-          where (changed :*: _ :*: ts') = foldr f (False :*: seen1 :*: []) ts
+          where (changed :*: seen2) = foldr f (False :*: seen1) ts
+                seen3 = (seen2 `S.difference` seen1)
                 seen1 = if doBot then S.singleton TError else S.empty
-                f t (changed :*: seen :*: ts) =
+                f t (changed :*: seen) =
                   case simp tested t of
                     Nothing -> case t of
-                                    Tor ts'                -> foldr f (True :*: seen :*: ts) ts'
-                                    _  | t `S.member` seen -> (True :*: seen :*: ts)
-                                    _                      -> (changed :*: (S.insert t seen) :*: (t:ts))
+                                    Tor ts'                -> foldr f (True :*: seen) ts'
+                                    _  | t `S.member` seen -> (True :*: seen)
+                                    _                      -> (changed :*: (S.insert t seen))
                     Just t' -> case t' of
-                                    Tor ts'                 -> foldr f (True :*: seen :*: ts) ts'
-                                    _  | t' `S.member` seen -> (True :*: seen :*: ts)
-                                    _                       -> (True :*: (S.insert t' seen) :*: (t':ts))
-        simp tested tf@(TFun args ef body) | isNothing body' = Nothing
-                                           | otherwise       = liftA (TFun args ef) body'
+                                    Tor ts'                 -> foldr f (True :*: seen) ts'
+                                    _  | t' `S.member` seen -> (True :*: seen)
+                                    _                       -> (True :*: (S.insert t' seen))
+        simp tested tf@(TFun args ef body) = liftA (TFun args ef) body'
           where body' = simp tested body
         simp tested (TIf l t_1 t_2 t) | botAndJTE t_2z = Just TError
                                       | trivialIf t_1 (fromJust t_2z) = simp tested t `plus` t
