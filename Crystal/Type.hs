@@ -140,6 +140,7 @@ simplifyPlus doBot t = maybe t id $ simp M.empty t
         simp tested (TIf l t_1 t_2 t) | botAndJTE t_2z = Just TError
                                       | trivialIf t_1 (fromJust t_2z) = simp tested t `plus` t
                                       | doBot && not (isTVar (fromJust t_2z)) = Just TError
+                                      | botAndJTE t_z = Just TError
                                       | isNothing all = Nothing
                                       | otherwise     = liftA2 (TIf l t_1) t_2z t_z
           where (t_2', t') = (simp tested t_2, simp tested' t)
