@@ -117,16 +117,23 @@ simplifyPlus :: Bool -> Type -> Type
 simplifyPlus doBot t = maybe t id $ simp M.empty t
   where botAndJTE x = doBot && x == Just TError
         simp tested (Tor ts) =
-          if any isJust ts' || any isTor ts'' || length ts /= S.size set
-             then if S.null set
-                     then Just TError
-                     else if S.size set == 1
-                             then Just $ S.findMin set
-                             else Just $ Tor $ S.toList set
+          if changed
+             then if 1 == length ts'
+                     then Just $ head ts'
+                     else Just $ Tor ts'
              else Nothing
-          where ts' = map (simp tested) ts
-                ts'' = zipWith (\mt t -> maybe t id mt) ts' ts
-                set = (if doBot then S.delete TError else id) $ S.fromList $ concatMap expandOr ts''
+          where (changed :*: _ :*: ts') = foldr f (False :*: seen1 :*: []) ts
+                seen1 = if doBot then S.singleton TError else S.empty
+                f t (changed :*: seen :*: ts) =
+                  case simp tested t of
+                    Nothing -> case t of
+                                    Tor ts'                -> foldr f (True :*: seen :*: ts) ts'
+                                    _  | t `S.member` seen -> (True :*: seen :*: ts)
+                                    _                      -> (changed :*: (S.insert t seen) :*: (t:ts))
+                    Just t' -> case t' of
+                                    Tor ts'                 -> foldr f (True :*: seen :*: ts) ts'
+                                    _  | t' `S.member` seen -> (True :*: seen :*: ts)
+                                    _                       -> (True :*: (S.insert t' seen) :*: (t':ts))
         simp tested tf@(TFun args ef body) | isNothing body' = Nothing
                                            | otherwise       = liftA (TFun args ef) body'
           where body' = simp tested body
@@ -200,10 +207,6 @@ expand t = expand' t
      where applied = simplify appl
            tl = lab :*: applied
     expand' typ = typ
-
-expandOr :: Type -> [Type]
-expandOr (Tor xs) = concatMap expandOr xs
-expandOr t = [t]
 
 trivialIf :: Type -> Type -> Bool
 trivialIf (TFun args_1 _ TAny) (TFun args_2 _ _) = length args_1 == length args_2
