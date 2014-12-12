@@ -184,7 +184,7 @@ replace :: M.Map TVar TypeNLabel -> Type -> Type
 replace env (TVar var) | Just (l :*: t) <- M.lookup var env = t
 replace env (Tor ts) = Tor $ map (replace env) ts
 replace env (TFun args ef bod) = TFun args ef $ replace (extendMany args (map (\v -> LVar v :*: TVar v) args) env) bod
-replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') (replace env t_1) (replace env t_2) (replace env t_3)
+replace env (TIf (l1,l2) t_1 t_2 t_3) = TIf (l1,l2') t_1 (replace env t_2) (replace env t_3)
   where l2' = case l2 of LVar tv | Just (l :*: t) <- M.lookup tv env -> l
                          x -> x
 replace env (TAppl fun args) = apply (replace env fun) $ map inst args

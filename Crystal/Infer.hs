@@ -252,9 +252,9 @@ stripLabels forbidden t = maybe t' id $ strip t'
         strip tif@(TIf (blame, cause) t_t t_1 t)
               | cause `S.member` forbidden = t' `plus` t
               | isNothing all              = Nothing
-              | otherwise                  = liftA3 (TIf (blame, cause)) (t_t' `plus` t_t) (t_1' `plus` t_1) (t' `plus` t)
-          where (t_t', t_1', t') = (strip t_t, strip t_1, strip t)
-                all = t_t' `mplus` t_1' `mplus` t'
+              | otherwise                  = liftA2 (TIf (blame, cause) t_t)  (t_1' `plus` t_1) (t' `plus` t)
+          where (t_1', t') = (strip t_1, strip t)
+                all = t_1' `mplus` t'
         strip ta@(TAppl fun tls) | isNothing all = Nothing
                                  | otherwise     = Just $ TAppl (maybe fun id fun') (zipWith f ts' tls)
           where (fun', ts') = (strip fun, map (strip . view _2) tls)
