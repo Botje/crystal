@@ -126,7 +126,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (If cond cons alt) -> do (e_0, t_0, ef_0) <- goT cond
                                    (e_1, t_1, ef_1) <- goT cons
                                    (e_2, t_2, ef_2) <- goT alt
-                                   let t_if = simplify $ Tor [t_1, t_2]
+                                   let t_if = if t_1 == t_2 then t_1 else Tor [t_1, t_2]
                                    let ef_if = ef_1 `mappend` ef_2
                                    return $ Expr (l' :*: t_if :*: ef_if) (If e_0 e_1 e_2)
           -- TODO: Type rule for this is wrong in thesis!
