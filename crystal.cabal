@@ -11,7 +11,7 @@ build-type:          Simple
 
 executable:          crystal
 main-is:             Crystal.hs
-ghc-options:         -rtsopts=all -fprof-auto
+ghc-options:         -rtsopts=all -fprof-auto -funbox-strict-fields
 
 -- executable:          recursion-test
 -- main-is:             test/Recursion.hs

@@ -27,7 +27,7 @@ data LitVal = LitChar   Char
             | LitPair LitVal LitVal
               deriving (Show, Read, Ord, Eq, Data, Typeable)
 
-data Expr a = Expr a (InExpr (Expr a)) deriving (Show, Read, Ord, Eq, Data, Typeable)
+data Expr a = Expr !a (InExpr (Expr a)) deriving (Show, Read, Ord, Eq, Data, Typeable)
 data InExpr e = Lit    LitVal
               | Ref    Ident
               | Appl   e [e]
