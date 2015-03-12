@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use IPC::Run qw(harness run timeout);
 use Test::More;
+use Time::Duration;
+use Time::HiRes qw(time);
 
 sub transform {
 	my ($file) = @_;
@@ -13,7 +15,7 @@ sub transform {
 	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(20)));
 
 	my $retval = eval { run($h); };
-	$h->kill_kill if ($@);
+	$h->kill_kill(grace => 5) if ($@);
 	return $@ ? 0 : !!$retval;
 }
 
@@ -23,9 +25,13 @@ chomp(@tests);
 plan tests => scalar @tests;
 
 for my $file (@tests) {
+	my $start = time();
 	my $ret = transform($file);
-	ok($ret, $file);
+	my $end = time();
+	ok($ret, sprintf("[%02.2f] %s", ($end - $start), $file));
 }
+
+done_testing();
 
 __DATA__
 test/gabriel/conform.sch

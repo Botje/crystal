@@ -1,3 +1,3 @@
 #!/bin/sh
 rundir=`dirname $0`
-$rundir/dist/build/crystal/crystal "$@"
+exec $rundir/dist/build/crystal/crystal "$@"
