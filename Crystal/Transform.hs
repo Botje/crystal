@@ -35,12 +35,12 @@ maybeDumpTree expr =
        report "transform" $ encode expr
      return expr
 
-denestLet expr = return $ rewriteBi denest expr
-  where denest :: Expr Label -> Maybe (Expr Label)
+denestLet expr = return $ transformBi denest expr
+  where denest :: Expr Label -> Expr Label
         denest (Expr l (Let [(id, expr)] bod))
                   | Expr l_i (Let [(id_i, expr_i)] bod_i) <- expr
-                  = Just $ Expr l_i $ Let [(id_i, expr_i)] (Expr l $ Let [(id, bod_i)] bod)
-        denest x = Nothing
+                  = denest $ Expr l_i $ Let [(id_i, expr_i)] $ denest (Expr l $ Let [(id, bod_i)] bod)
+        denest x = x
 
 toANF expr@(Expr start _) = return $ evalState (go expr return >>= updateRootLabel) (succ start)
   where go :: Expr Label -> (Expr Label -> State Int (Expr Label)) -> State Int (Expr Label)
