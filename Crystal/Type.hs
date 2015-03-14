@@ -104,7 +104,7 @@ instance Show VarFun where
 concreteTypes :: [Type]
 concreteTypes = [TInt, TString, TBool, TSymbol, TVoid, TVec, TPair, TList, TNull, TChar, TPort, THash]
 
-plus :: Maybe Type -> Type -> Maybe Type
+plus :: Maybe a -> a -> Maybe a
 plus mt t = mt `mplus` Just t
 
 simplify :: Type -> Type
