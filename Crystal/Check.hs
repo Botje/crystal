@@ -30,16 +30,19 @@ data Check = Cnone
            | Check [TLabel] Type (Either LitVal Ident)
              deriving (Show, Eq, Data, Typeable)
 
-type CheckedLabel = TLabel :*: Check :*: Effect
+type CheckedLabel = TLabel :*: (Check :*: Type) :*: Effect
 
 _check :: Simple Lens CheckedLabel Check
-_check = _2._1
+_check = _2._1._1
 
 annCheck :: Simple Lens (Expr CheckedLabel) Check
 annCheck = ann._check
 
 annEffect :: Simple Lens (Expr CheckedLabel) Effect
 annEffect = ann._2._2
+
+annType :: Simple Lens (Expr CheckedLabel) Type
+annType = ann._2._1._2
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
 addChecks = reifyChecks <=< maybeAnnotateLabels <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
@@ -55,14 +58,14 @@ instance ToJSON TLabel where
   toJSON l = toJSON $ show l
 
 instance ToJSON CheckedLabel where
-  toJSON (l :*: c :*: ef) = object [ "label" .= show l, "check" .= show c, "effect" .= toJSON (S.toList ef) ]
+  toJSON (l :*: (c :*: t) :*: ef) = object [ "label" .= show l, "check" .= show c, "effect" .= toJSON (S.toList ef) ]
 
 introduceChecks :: Expr TypedLabel -> Step (Expr CheckedLabel)
 introduceChecks expr = return $ go expr
   where go (Expr (l :*: t :*: ef) expr) =
-          let simply ie = Expr (l :*: Cnone :*: ef) ie in
+          let simply ie = Expr (l :*: (Cnone :*: t) :*: ef) ie in
           case expr of
-               Appl op args         -> Expr (l :*: checks :*: ef) (Appl op' args')
+               Appl op args         -> Expr (l :*: (checks :*: t) :*: ef) (Appl op' args')
                  where labLookup l =
                          case [ litOrIdent e | (Expr (l' :*: _) e) <- op':args', l == l' ] of
                               []     -> Nothing
@@ -121,22 +124,22 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                          then return $ transformBi f ast
                          else return ast
   where f :: Expr CheckedLabel -> Expr CheckedLabel
-        f simple@(Expr (l :*: checks :*: ef) e) =
+        f simple@(Expr (l :*: (checks :*: t) :*: ef) e) =
           case e of
                Appl op args         -> simple
                Lit lit              -> simple
                Ref r                -> simple
-               If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: ef) e
+               If cond cons alt     -> Expr (l :*: (simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: t) :*: ef) e
                LetRec bnds bod      -> simple
                Lambda ids r bod     -> simple
                Begin exps           -> 
-                 Expr (l :*: firstCheck :*: ef) $ Begin (exp' : exps')
+                 Expr (l :*: (firstCheck :*: t) :*: ef) $ Begin (exp' : exps')
                    where firstCheck  = exp ^. annCheck
                          exp'        = exp & annCheck .~ Cnone
                          (exp:exps') = scanr1 push exps
                          push e1 e2  = e1 & annCheck %~ \c1 -> simplifyC $ Cand [c1, removeChecksOn (e1 ^. annEffect) (e2 ^. annCheck)]
                Let [(id, e)] bod    ->
-                 Expr (l :*: checksNoId :*: ef) $ Let [(id, set annCheck Cnone e)] bod
+                 Expr (l :*: (checksNoId :*: t) :*: ef) $ Let [(id, set annCheck Cnone e)] bod
                    where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
                          checksNoId = simplifyC $ Cand [e_c, removeChecksOn (effectSingleton id `mappend` ef) bod_c]
 
@@ -169,7 +172,7 @@ type CachedTypes = M.Map Ident (TLabel :*: Type)
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
   where startChecks :: ChecksMap
-        startChecks = M.fromList [ (l, c :*: ef) | Expr (l :*: c :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
+        startChecks = M.fromList [ (l, c :*: ef) | Expr (l :*: (c :*: t) :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
         finalChecks = execState redundantLoop startChecks
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
         updateChecks checks expr = transformBi u expr
@@ -224,7 +227,7 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
         walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
         walk (Expr _ (Lit _)) = return ()
         walk (Expr _ (Ref _)) = return ()
-        walk (Expr (l :*: c :*: ef) ie) =
+        walk (Expr (l :*: (c :*: t) :*: ef) ie) =
           do c' <- stripWithCache l c
              updateCachedTypes l c'
              case ie of
@@ -280,12 +283,12 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
   where format stats = unlines [ k ++ "\t" ++ show d | (k, d) <- M.toAscList stats ]
         stats = M.fromListWith lowestCheckAndUse compDists
         compDists = [ (id, relativeDistance d d') | MRRAT d id d' <- execWriter (runReaderT (go 0 expr) (MI M.empty M.empty)) ]
-        numChecks = length [ () | (Expr (_ :*: cs :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
+        numChecks = length [ () | (Expr (_ :*: (cs :*: t) :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
 
         go :: Depth -> Expr CheckedLabel -> ReaderT MobilityInfo (Writer [MobilityReport]) ()
         go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LVar _ :*: _ :*: _) _)        = return ()
-        go depth (Expr (LSource l :*: checks :*: _) e) =
+        go depth (Expr (LSource l :*: (checks :*: t) :*: _) e) =
           withChecks $ 
             case e of 
                  Appl op args         -> mapM_ descend (op:args)
@@ -335,7 +338,7 @@ annotate expr = transformBi ann expr
 
 reifyChecks :: Expr CheckedLabel -> Step (Expr TLabel)
 reifyChecks = return . go
-  where go (Expr (l :*: checks :*: _) e) =
+  where go (Expr (l :*: (checks :*: t) :*: _) e) =
           let simply e = reify (simplifyC checks) (Expr l e) in
               case e of
                  Appl op args         -> simply (Appl (go op) (map go args))
