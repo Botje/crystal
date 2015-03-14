@@ -1,0 +1,6 @@
+(let ((x 5))
+	(display (+ x 3))
+	(set! x 3)
+	(display (+ x 3))
+	(set! x "hallo")
+	(display (string-append x " world")))

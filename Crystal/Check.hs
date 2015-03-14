@@ -45,7 +45,7 @@ annType :: Simple Lens (Expr CheckedLabel) Type
 annType = ann._2._1._2
 
 addChecks :: Expr TypedLabel -> Step (Expr TLabel)
-addChecks = reifyChecks <=< maybeAnnotateLabels <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
+addChecks = reifyChecks <=< maybeAnnotateLabels <=< maybeDumpTree "check-simplification" <=< generateMobilityStats <=< eliminateSetCheck <=< eliminateRedundantChecks <=< maybeDumpTree "check-mobility" <=< moveChecksUp <=< introduceChecks
 
 maybeDumpTree :: ToJSON a => String -> Expr a -> Step (Expr a)
 maybeDumpTree tag expr =
@@ -166,12 +166,42 @@ mergeSameChecks check = evalState (stripMerged check) grouped
 
 
 
+eliminateSetCheck :: Expr CheckedLabel -> Step (Expr CheckedLabel)
+eliminateSetCheck expr = return $ transformBi elimSetCheck expr
+  where elimSetCheck (Expr lcte (Begin es)) = Expr lcte $ Begin $ go es
+        elimSetCheck x = x
+        go [] = []
+        go [e] = [e]
+        go (e1:e2:es) =
+          case findSetAndType e1 >>= (\(v,t) -> assume (v,t) (e2 ^. annCheck)) of
+               Just c -> e1 : go ((e2 & annCheck .~ simplifyC c) : es)
+               Nothing    -> e1 : go (e2:es)
+        findSetAndType (Expr lcte (Appl f [var, val])) | isRefTo "set!" f =
+          let (Expr _ (Ref v)) = var in Just (v, val ^. annType)
+        findSetAndType (Expr _ (Let _ e)) = findSetAndType e
+        findSetAndType _                  = Nothing
+        assume :: (Ident, Type) -> Check -> Maybe Check
+        assume (v,t) (Check labs typ (Left _)) = Nothing
+        assume (v,t) (Check labs typ (Right var)) | var == v && t == typ = Just Cnone
+                                                  | otherwise            = Nothing
+        assume (v,t) Cnone     = Nothing
+        assume (v,t) (Cand cs) =
+          if (any isJust cs')
+             then Just $ Cand $ zipWith (\c c' -> maybe c id c') cs cs'
+             else Nothing
+          where cs' = map (assume (v,t)) cs
+        assume (v,t) (Cor cs) =
+          if (any isJust cs')
+             then Just $ Cor $ zipWith (\c c' -> maybe c id c') cs cs'
+             else Nothing
+          where cs' = map (assume (v,t)) cs
+
 type ChecksMap = M.Map TLabel (Check :*: Effect)
 type CachedTypes = M.Map Ident (TLabel :*: Type)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
-  where startChecks :: ChecksMap
+  where startChecks, finalChecks :: ChecksMap
         startChecks = M.fromList [ (l, c :*: ef) | Expr (l :*: (c :*: t) :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
         finalChecks = execState redundantLoop startChecks
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
