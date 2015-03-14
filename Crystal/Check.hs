@@ -196,13 +196,13 @@ eliminateSetCheck expr = return $ transformBi elimSetCheck expr
              else Nothing
           where cs' = map (assume (v,t)) cs
 
-type ChecksMap = M.Map TLabel (Check :*: Effect)
+type ChecksMap = M.Map TLabel (Check :*: Type :*: Effect)
 type CachedTypes = M.Map Ident (TLabel :*: Type)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
   where startChecks, finalChecks :: ChecksMap
-        startChecks = M.fromList [ (l, c :*: ef) | Expr (l :*: (c :*: t) :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
+        startChecks = M.fromList [ (l, c :*: t :*: ef) | Expr (l :*: (c :*: t) :*: ef) _ <- universeBi expr :: [Expr CheckedLabel] ]
         finalChecks = execState redundantLoop startChecks
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
         updateChecks checks expr = transformBi u expr
@@ -235,8 +235,8 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                                                           return Cnone
                                  _ -> return c
                 updateChecksMap l f = do map <- get
-                                         let Just (c :*: ef) = M.lookup l map
-                                         put $ M.insert l (f c :*: ef) map
+                                         let Just (c :*: tef) = M.lookup l map
+                                         put $ M.insert l (f c :*: tef) map
 
         updateCachedTypes :: TLabel -> Check -> StateT CachedTypes (State ChecksMap) ()
         updateCachedTypes l check = update check
