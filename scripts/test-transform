@@ -6,13 +6,15 @@ use Test::More;
 use Time::Duration;
 use Time::HiRes qw(time);
 
+use constant TIMEOUT => ($ENV{TIMEOUT} // 20);
+
 sub transform {
 	my ($file) = @_;
 	
 	my $cmd = [ "./run.sh", "-@", $file ];
 	my ($out, $err, $ret);
 
-	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(20)));
+	my $h = harness($cmd, \undef, \$out, \$err, (my $t = timeout(TIMEOUT)));
 
 	my $retval = eval { run($h); };
 	$h->kill_kill(grace => 5) if ($@);
