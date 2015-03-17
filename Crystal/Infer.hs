@@ -120,8 +120,8 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
           (Ref i) -> do lt <- asks (M.lookup i)
                         case lt of
                           Just (l :*: t :*: ef)
-                            | i `varInEffect` allSet -> return $ Expr (l :*: TAny :*: emptyEffect) (Ref i)
-                            | otherwise              -> return $ Expr (l :*: simplify t :*: ef) (Ref i)
+                            | i `varInEffect` allSet -> return $ Expr (l' :*: TAny :*: emptyEffect) (Ref i)
+                            | otherwise              -> return $ Expr (l' :*: simplify t :*: ef) (Ref i)
                           Nothing -> error ("Unbound variable " ++ show i)
           (If cond cons alt) -> do (e_0, t_0, ef_0) <- goT cond
                                    (e_1, t_1, ef_1) <- goT cons
