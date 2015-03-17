@@ -202,7 +202,6 @@ type CachedTypes = M.Map Ident (TLabel :*: Type)
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
   where startChecks, finalChecks :: ChecksMap
-        startChecks = M.fromList [ (l, ctef) | Expr (l :*: ctef) _ <- universeBi expr :: [Expr CheckedLabel] ]
         finalChecks = execState redundantLoop startChecks
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel
         updateChecks checks expr = u expr
@@ -215,9 +214,10 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                 v (LetRec bnds bod)  = LetRec (map (_2 %~ u) bnds)(u bod) 
                 v other              = other
         
-        allSet :: [Ident]
-        allSet = [ r | Expr _ (Ref r) <- sets ]
-          where sets = [ var | Expr _ (Appl f [var, _]) <- universeBi expr :: [Expr CheckedLabel], isRefTo "set!" f ]
+        (startChecks :*: allSet) = foldl' perNode (M.empty :*: S.empty) (universeBi expr :: [Expr CheckedLabel])
+        perNode (m :*: s) (Expr (l :*: ctef) e) =
+          case e of (Appl f [ Expr _ (Ref r), _]) | isRefTo "set!" f -> M.insert l ctef m :*: S.insert r s
+                    _                                                -> M.insert l ctef m :*: s
 
         redundantLoop :: State ChecksMap ()
         redundantLoop = do evalStateT (walk expr) M.empty
@@ -280,7 +280,7 @@ eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
                (LetRec bnds bod)      -> do mapM_ walk $ map snd bnds
                                             walk bod
                (Lambda ids r bod)     -> do cached <- get
-                                            let act = do forM_ allSet $ \id -> modify $ M.delete id
+                                            let act = do forM_ (S.toList allSet) $ \id -> modify $ M.delete id
                                                          case r of
                                                               Nothing -> return ()
                                                               Just x  -> modify $ M.insert x (l :*: TList)
