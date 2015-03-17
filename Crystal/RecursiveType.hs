@@ -28,7 +28,7 @@ import Crystal.Trace
 import Crystal.Tuple
 import Crystal.Type
 
-debugging = True
+debugging = False
 
 traced f x | debugging = trace (f x) x
 traced f x | otherwise = x
