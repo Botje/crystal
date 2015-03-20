@@ -23,7 +23,7 @@ GetOptions(
 );
 
 my @smart = qw(./run.sh --stats -@);
-my @dumb  = qw(./run.sh --no-mobility --dumb --stats -@);
+my @dumb  = qw(./run.sh --no-mobility --no-simplification --dumb --stats -@);
 
 sub crystal {
 	my $cmd = shift,

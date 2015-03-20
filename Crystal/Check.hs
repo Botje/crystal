@@ -205,7 +205,10 @@ type ChecksMap = M.Map TLabel (Check :*: Type :*: Effect)
 type CachedTypes = M.Map Ident (TLabel :*: Type)
 
 eliminateRedundantChecks :: Expr CheckedLabel -> Step (Expr CheckedLabel)
-eliminateRedundantChecks expr = return $ updateChecks finalChecks expr
+eliminateRedundantChecks expr = do elim <- asks (^.cfgCheckSimplification)
+                                   if elim
+                                      then return $ updateChecks finalChecks expr
+                                      else return expr
   where startChecks, finalChecks :: ChecksMap
         finalChecks = execState redundantLoop startChecks
         updateChecks :: ChecksMap -> Expr CheckedLabel -> Expr CheckedLabel

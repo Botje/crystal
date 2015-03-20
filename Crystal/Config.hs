@@ -12,6 +12,7 @@ data Config =
   Config { _cfgTypeSys   :: TSType,
            _cfgInputFile :: String,
            _cfgCheckMobility :: Bool,
+           _cfgCheckSimplification :: Bool,
            _cfgMobilityStats :: Bool,
            _cfgDumpTypes :: Bool,
            _cfgDumpTree  :: Bool,
@@ -25,6 +26,8 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                      , _cfgInputFile = def &= args &= typFile
                      , _cfgCheckMobility = enum [ True &= help "Test mobility (default)" &= name "mobility" &= explicit,
                                                   False &= help "Disable mobility" &= name "no-mobility" &= explicit ]
+                     , _cfgCheckSimplification = enum [ True &= help "Test simplification (default)" &= name "simplification" &= explicit,
+                                                        False &= help "Disable simplification" &= name "no-simplification" &= explicit ]
                      , _cfgMobilityStats = enum [ False &= help "Don't generate mobility stats (default)" &= name "no-stats" &= explicit,
                                                   True &= help "Generate mobility stats" &= name "stats" &= explicit ]
                      , _cfgDumpTypes = enum [ False &= help "Don't dump top-level types (default)" &= name "no-types" &= explicit,
