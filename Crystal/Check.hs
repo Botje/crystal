@@ -121,27 +121,32 @@ insertC cc@(Check l t (Right id)) (c:cs) =
 moveChecksUp :: Expr CheckedLabel -> Step (Expr CheckedLabel)
 moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                       if moveUp
-                         then return $ transformBi f ast
+                         then return $ move ast
                          else return ast
-  where f :: Expr CheckedLabel -> Expr CheckedLabel
-        f simple@(Expr (l :*: checks :*: t :*: ef) e) =
-          case e of
-               Appl op args         -> simple
-               Lit lit              -> simple
-               Ref r                -> simple
-               If cond cons alt     -> Expr (l :*: simplifyC (Cor [cons ^. annCheck , alt ^. annCheck]) :*: t :*: ef) e
-               LetRec bnds bod      -> simple
-               Lambda ids r bod     -> simple
-               Begin exps           -> 
-                 Expr (l :*: firstCheck :*: t :*: ef) $ Begin (exp' : exps')
-                   where firstCheck  = exp ^. annCheck
-                         exp'        = exp & annCheck .~ Cnone
-                         (exp:exps') = scanr1 push exps
-                         push e1 e2  = e1 & annCheck %~ \c1 -> simplifyC $ Cand [c1, removeChecksOn (e1 ^. annEffect) (e2 ^. annCheck)]
-               Let [(id, e)] bod    ->
-                 Expr (l :*: checksNoId :*: t :*: ef) $ Let [(id, set annCheck Cnone e)] bod
-                   where (e_c, bod_c) = (e ^. annCheck, bod ^. annCheck)
-                         checksNoId = simplifyC $ Cand [e_c, removeChecksOn (effectSingleton id `mappend` ef) bod_c]
+  where move :: Expr CheckedLabel -> Expr CheckedLabel
+        move simple@(Expr lctef@(l :*: checks :*: t :*: ef) e) =
+              case e of
+                   Appl op args         -> Expr lctef $ Appl (move op) (map move args)
+                   Lit lit              -> simple
+                   Ref r                -> simple
+                   If cond cons alt     ->
+                     let (cond', cons', alt') = (move cond, move cons, move alt)
+                         (cond_c, cons_c, alt_c) = (cond' ^. annCheck, cons' ^. annCheck, alt' ^. annCheck)
+                         lctef' = (l :*: simplifyC (Cand [cond_c, Cor [cons_c, alt_c]]) :*: t :*: ef)
+                     in Expr lctef' $ If (cond' & annCheck .~ Cnone) cons' alt'
+                   LetRec bnds bod      -> Expr lctef $ LetRec (map (_2 %~ move) bnds) (move bod)
+                   Lambda ids r bod     -> Expr lctef $ Lambda ids r (move bod)
+                   Begin exps           ->
+                     Expr (l :*: firstCheck :*: t :*: ef) $ Begin (exp' : exps')
+                       where firstCheck  = exp ^. annCheck
+                             exp'        = exp & annCheck .~ Cnone
+                             (exp:exps') = scanr1 push $ map move exps
+                             push e1 e2  = e1 & annCheck %~ \c1 -> simplifyC $ Cand [c1, removeChecksOn (e1 ^. annEffect) (e2 ^. annCheck)]
+                   Let [(id, e)] bod    ->
+                     Expr (l :*: checksNoId :*: t :*: ef) $ Let [(id, e' & annCheck .~ Cnone)] bod
+                       where (e', bod')   = (move e, move bod)
+                             (e_c, bod_c) = (e' ^. annCheck, bod' ^. annCheck)
+                             checksNoId   = simplifyC $ Cand [e_c, removeChecksOn (effectSingleton id `mappend` ef) bod_c]
 
 removeChecksOn :: Effect -> Check -> Check
 removeChecksOn ef = transform f
