@@ -75,12 +75,8 @@ generateDumb e = go e
                  Appl op args ->
                   let (op_, args_) = (go op, map go args)
                       (Expr (l_r :*: _) (Ref r)) = op_
-                  in case M.lookup r main_env of
-                          Just (LPrim nam :*: t_f :*: _) ->
-                            Expr (l' :*: applyPrim (instantiatePrim nam l' t_f) (map getTypeAndLabel args_) :*: mempty) (Appl op_ args_)
-                          Nothing ->
-                            let typ = TIf (l', l_r) (TFun (map (const 42) args_) emptyEffect TAny) TAny TAny
-                            in Expr (l' :*: typ :*: mempty) (Appl op_ args_)
+                      typ = TIf (l', l_r) (TFun (zipWith const [1..] args_) emptyEffect TAny) TAny TAny
+                  in Expr (l' :*: typ :*: mempty) (Appl op_ args_)
                  Lit lit              -> simply (Lit lit)
                  Ref r                -> simply (Ref r)
                  If cond cons alt     -> simply (If (go cond) (go cons) (go alt))
