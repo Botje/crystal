@@ -146,6 +146,7 @@ main_env = carLikes `M.union` M.fromListWith or [
     "open-output-file" --> fun [1..1] . require [(TString,1)] TPort,
     "output-port?"  --> fun [1..1] . require [] TBool,
     "pair?"         --> fun [1..1] . require [] TBool,
+    "pair"          --> fun [1..2] . require [] TPair,
     "peek-char"     --> fun []     . require [] TChar,
     "peek-char"     --> fun [1..1] . require [(TPort,1)] TChar,
     "port?"         --> fun [1..1] . require [] TBool,

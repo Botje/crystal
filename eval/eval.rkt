@@ -356,6 +356,7 @@
        (new-binding 'open-output-file open-output-file)
 			 (new-binding 'output-port? output-port?)
        (new-binding 'pair? r5rs:pair?)
+       (new-binding 'pair r5rs:cons)
 			 (new-binding 'peek-char peek-char)
        (new-binding 'port? port?)
        (new-binding 'positive? positive?)

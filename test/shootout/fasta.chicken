@@ -42,7 +42,7 @@
     (map
      (lambda (x)
        (set! cumulative (+ cumulative (cdr x)))
-       (cons (char->integer (car x)) cumulative))
+       (pair (char->integer (car x)) cumulative))
      frequency-table)))
 
 (define random-next (make-random 42))
