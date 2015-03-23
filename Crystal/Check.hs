@@ -393,7 +393,14 @@ reifyChecks = return . go
                  Let [(id, e)] bod    -> simply (Let [(id, go e)] (go bod))
                  LetRec bnds bod      -> simply (LetRec (over (mapped._2) go bnds) (go bod))
                  Lambda ids r bod     -> simply (Lambda ids r (go bod))
-                 Begin es             -> simply (Begin $ map go es)
+                 Begin es             ->
+                   case foldr mergeBegin (Expr LSyn (Begin [])) (map go es) of
+                        Expr l (Begin [e]) -> e
+                        expr               -> expr
+        mergeBegin (Expr l e) (Expr l' (Begin es')) =
+          case e of
+            Appl op args | isRefTo "check" op -> Expr LSyn (Begin [Expr l (Appl op (args ++ es'))])
+            otherwise                         -> Expr l' (Begin (Expr l e : es'))
 
 reify :: Check -> Expr TLabel -> Expr TLabel
 reify Cnone e = e

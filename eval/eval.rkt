@@ -163,24 +163,21 @@
     [(list 'lambda args bod ..1)
      (lambda real-args
        (eval-lambda args bod real-args env))]
-    [(list 'check pred bod)
+    [(list 'check pred exps ..1)
      (parameterize [(*evaluating-predicate* #t)]
        (when (*counting-checks*)
          (set! *check-count* (+ *check-count* 1)))
        (unless (eval-predicate pred env)
          (error "Check failed" pred)))
-     (eval bod env)]
+     (eval-begin exps env)]
     [(list 'time exps ...)
      (eval-begin exps env)]
     [(list 'set! var exp)
      (eval-set! var (eval exp env) env)]
     [(list 'begin)
      (void)]
-    [(list 'begin exp)
-     (eval exp env)]
-    [(list 'begin exp exps ...)
-     (eval exp env)
-     (eval `(begin ,@exps) env)]
+    [(list 'begin exps ..1)
+		 (eval-begin exps env)]
     [(list '@ lab fun args ...)
      (report-tick-for lab env (cons fun args))
      (let ([fval (eval fun env)]
