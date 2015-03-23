@@ -62,5 +62,9 @@ isRefTo :: Ident -> Expr a -> Bool
 isRefTo id (Expr _ (Ref r)) = id == r
 isRefTo id       _          = False
 
+isCallTo :: Ident -> Expr a -> Bool
+isCallTo id (Expr _ (Appl c _)) | isRefTo id c = True
+isCallTo id       _                            = False
+
 params :: [Ident] -> Maybe Ident -> [Ident]
 params ids r = ids ++ maybe [] return r
