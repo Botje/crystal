@@ -11,7 +11,7 @@
 (define *global-env* '())
 
 (define *evaluating-predicate* (make-parameter #f))
-(define *counting-distance* (make-parameter #t))
+(define *counting-distance* (make-parameter #f))
 (define *current-function* (make-parameter "main"))
 (define *tick-count* 0)
 (define (tick)
@@ -484,6 +484,7 @@
     #:program "eval"
     #:once-each
     [("-t" "--timings") "Report timings" (*report-timings* #t)]
-    [("-c" "--count-checks") "Report number of checks made" (*counting-checks* #t) (*counting-distance* #f)]
+    [("-c" "--count-checks") "Report number of checks made" (*counting-checks* #t)]
+    [("-d" "--count-distance") "Report define--check and check--use distance" (*counting-distance* #t)]
     #:args args
     (start-eval (read-code args))))
