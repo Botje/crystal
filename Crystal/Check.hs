@@ -143,7 +143,7 @@ moveChecksUp ast = do moveUp <- asks (^.cfgCheckMobility)
                              (exp:exps') = scanr1 push $ map move exps
                              push e1 e2  = e1 & annCheck %~ \c1 -> simplifyC $ Cand [c1, removeChecksOn (e1 ^. annEffect) (e2 ^. annCheck)]
                    Let [(id, e)] bod    ->
-                     Expr (l :*: checksNoId :*: t :*: ef) $ Let [(id, e' & annCheck .~ Cnone)] bod
+                     Expr (l :*: checksNoId :*: t :*: ef) $ Let [(id, e' & annCheck .~ Cnone)] bod'
                        where (e', bod')   = (move e, move bod)
                              (e_c, bod_c) = (e' ^. annCheck, bod' ^. annCheck)
                              checksNoId   = simplifyC $ Cand [e_c, removeChecksOn (effectSingleton id `mappend` ef) bod_c]
