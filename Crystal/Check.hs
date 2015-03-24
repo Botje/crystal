@@ -331,8 +331,8 @@ generateMobilityStats expr = do generateStats <- asks (^.cfgMobilityStats)
         numChecks = length [ () | (Expr (_ :*: cs :*: t :*: _) _) <- universe expr, Check _ _ _ <- universe cs]
 
         go :: Depth -> Expr CheckedLabel -> ReaderT MobilityInfo (Writer [MobilityReport]) ()
-        go depth (Expr (LPrim _ :*: _ :*: _) _)        = return ()
-        go depth (Expr (LVar _ :*: _ :*: _) _)        = return ()
+        go depth (Expr (LPrim _ :*: _ :*: _ :*: _) _)        = return ()
+        go depth (Expr (LVar _ :*: _ :*: _ :*: _) _)        = return ()
         go depth (Expr (LSource l :*: checks :*: t :*: _) e) =
           withChecks $ 
             case e of 
@@ -374,13 +374,13 @@ maybeAnnotateLabels expr = do doAnnotate <- asks (^.cfgAnnotateLabels)
 
 annotate :: Expr CheckedLabel -> Expr CheckedLabel
 annotate expr = transformBi ann expr
-  where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _) _ <- universeBi expr :: [Expr CheckedLabel]
+  where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _ :*: _) _ <- universeBi expr :: [Expr CheckedLabel]
                                            , Check labs _ _ <- universeBi checks
                                            , LSource lab <- labs ]
-        syn x = Expr (LSyn :*: Cnone :*: emptyEffect) x 
-        ann (Expr (LSource l :*: cs :*: ef) (Appl f args)) | l `S.member` annotatedLabels =
+        syn x = Expr (LSyn :*: Cnone :*: TInt :*: emptyEffect) x
+        ann (Expr (LSource l :*: cs :*: t :*: ef) (Appl f args)) | l `S.member` annotatedLabels =
           let lab = syn (Lit (LitInt (fromIntegral l)))
-          in Expr (LSource l :*: cs :*: ef) $ Appl (syn $ Ref "@") ([lab, f] ++ args)
+          in Expr (LSource l :*: cs :*: t :*: ef) $ Appl (syn $ Ref "@") (lab : f : args)
         ann x = x
 
 

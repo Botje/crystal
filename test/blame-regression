@@ -1,0 +1,10 @@
+(define (blit-string! s1 o1 s2 o2 len)
+  (do ((o1 o1 (+ o1 1))
+       (o2 o2 (+ o2 1))
+       (len len (- len 1)))
+    
+      ((= len 0))
+    
+    (string-set! s2 o2 (string-ref s1 o1))))
+
+42
