@@ -395,8 +395,8 @@ reifyChecks = return . go
                  Lambda ids r bod     -> simply (Lambda ids r (go bod))
                  Begin es             ->
                    case foldr mergeBegin (Expr LSyn (Begin [])) (map go es) of
-                        Expr l (Begin [e]) -> e
-                        expr               -> expr
+                        Expr l (Begin [e]) -> reify (simplifyC checks) e
+                        expr               -> reify (simplifyC checks) expr
         mergeBegin (Expr l e) (Expr l' (Begin es')) =
           case e of
             Appl op args | isRefTo "check" op -> Expr LSyn (Begin [Expr l (Appl op (args ++ es'))])
