@@ -374,10 +374,13 @@ maybeAnnotateLabels expr = do doAnnotate <- asks (^.cfgAnnotateLabels)
 
 annotate :: Expr CheckedLabel -> Expr CheckedLabel
 annotate expr = transformBi ann expr
-  where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _) _ <- universe expr, Check labs _ _ <- universeBi checks, LSource lab <- labs]
+  where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _) _ <- universeBi expr :: [Expr CheckedLabel]
+                                           , Check labs _ _ <- universeBi checks
+                                           , LSource lab <- labs ]
         syn x = Expr (LSyn :*: Cnone :*: emptyEffect) x 
         ann (Expr (LSource l :*: cs :*: ef) (Appl f args)) | l `S.member` annotatedLabels =
-          Expr (LSource l :*: cs :*: ef) $ Appl (syn $ Ref "@") (syn (Lit (LitInt (fromIntegral l))) : f : args)
+          let lab = syn (Lit (LitInt (fromIntegral l)))
+          in Expr (LSource l :*: cs :*: ef) $ Appl (syn $ Ref "@") ([lab, f] ++ args)
         ann x = x
 
 
