@@ -34,17 +34,16 @@ undoLetrec expr = do addDefines <- not `fmap` asks (^.cfgAnnotateLabels)
 
 undoLetLet :: Expr TLabel -> Step (Expr TLabel)
 undoLetLet expr = do let (expr', ps) = runWriter $ transformBiM f expr
-                     
-                     return $ inline (M.fromList ps) expr'
+                     return $ inline ps expr'
   where f e@(Expr l (Let [(id, app)] b)) =
           case b of
                Expr l' (If cond cons alt)
-                  | isTmp && oneMention -> tell [(id, app)] >> return b
+                  | isTmp && oneMention -> tell (M.singleton id app)  >> return b
                Expr l' (Let bnds bod)
-                  | isTmp && oneMention -> tell [(id, app)] >> return b
+                  | isTmp && oneMention -> tell (M.singleton id app) >> return b
                   | otherwise              -> return $ Expr l (Let ((id, app) : bnds) bod)
                Expr l' (Appl f args)
-                  | isTmp && not (isRefTo "check" f) -> tell [(id,app)] >> return b
+                  | isTmp && not (isRefTo "check" f) -> tell (M.singleton id app) >> return b
                Expr _ (Ref id') | oneMention -> return app
                _ -> return e
             where isTmp = "tmp-" `isPrefixOf` id
