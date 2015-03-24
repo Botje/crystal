@@ -34,7 +34,8 @@ undoLetrec expr = do addDefines <- not `fmap` asks (^.cfgAnnotateLabels)
 
 undoLetLet :: Expr TLabel -> Step (Expr TLabel)
 undoLetLet expr = do let (expr', ps) = runWriter $ transformBiM f expr
-                     return $ inline ps expr'
+                     let ps' = M.map (inline ps') ps
+                     return $ inline ps' expr'
   where f e@(Expr l (Let [(id, app)] b)) =
           case b of
                Expr l' (If cond cons alt)
