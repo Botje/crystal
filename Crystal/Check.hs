@@ -181,10 +181,13 @@ eliminateSetCheck expr = return $ transformBi elimSetCheck expr
           case findSetAndType e1 >>= (\(v,t) -> assume (v,t) (e2 ^. annCheck)) of
                Just c -> e1 : go ((e2 & annCheck .~ simplifyC c) : es)
                Nothing    -> e1 : go (e2:es)
+
+        findSetAndType :: Expr CheckedLabel -> Maybe (Ident, Type)
         findSetAndType (Expr lcte (Appl f [var, val])) | isRefTo "set!" f =
           let (Expr _ (Ref v)) = var in Just (v, val ^. annType)
         findSetAndType (Expr _ (Let _ e)) = findSetAndType e
         findSetAndType _                  = Nothing
+
         assume :: (Ident, Type) -> Check -> Maybe Check
         assume (v,t) (Check labs typ (Left _)) = Nothing
         assume (v,t) (Check labs typ (Right var)) | var == v && t == typ = Just Cnone
@@ -375,7 +378,7 @@ maybeAnnotateLabels expr = do doAnnotate <- asks (^.cfgAnnotateLabels)
 annotate :: Expr CheckedLabel -> Expr CheckedLabel
 annotate expr = transformBi ann expr
   where annotatedLabels = S.fromList [ lab | Expr (_ :*: checks :*: _ :*: _) _ <- universeBi expr :: [Expr CheckedLabel]
-                                           , Check labs _ _ <- universeBi checks
+                                           , Check labs _ _ <- universe checks
                                            , LSource lab <- labs ]
         syn x = Expr (LSyn :*: Cnone :*: TInt :*: emptyEffect) x
         ann (Expr (LSource l :*: cs :*: t :*: ef) (Appl f args)) | l `S.member` annotatedLabels =
