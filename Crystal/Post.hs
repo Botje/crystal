@@ -7,7 +7,7 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import Data.List
 import Data.Generics
-import Data.Generics.Biplate
+import Data.Generics.Uniplate.Operations
 import qualified Data.Map as M
 
 import Crystal.AST

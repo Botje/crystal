@@ -8,7 +8,7 @@ import Control.Monad
 import Data.Aeson hiding (encode)
 import Data.Function
 import Data.Generics
-import Data.Generics.Biplate
+import Data.Generics.Uniplate.Operations
 import Data.List
 import Data.Maybe
 import Data.Monoid

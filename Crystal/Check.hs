@@ -1,9 +1,9 @@
 {-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
-{-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings #-}
+{-#LANGUAGE TypeSynonymInstances, FlexibleInstances, OverloadedStrings, MultiParamTypeClasses#-}
 module Crystal.Check where
 
 import Control.Applicative
-import Control.Lens hiding (transform, transformM, universe, (.=))
+import Control.Lens hiding (transform, transformM, universe, (.=), plate)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -14,8 +14,7 @@ import Debug.Trace
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text.Lazy as T
-import Data.Generics hiding (GT)
-import Data.Generics.Biplate
+import Data.Generics.Uniplate.Direct
 
 import Crystal.AST
 import Crystal.JSON
@@ -28,7 +27,16 @@ data Check = Cnone
            | Cand [Check]
            | Cor [Check]
            | Check [TLabel] Type (Either LitVal Ident)
-             deriving (Show, Eq, Data, Typeable)
+             deriving (Show, Eq)
+
+instance Uniplate Check where
+  uniplate Cnone               = plate Cnone
+  uniplate (Cand cs)           = plate Cand ||* cs
+  uniplate (Cor cs)            = plate Cor ||* cs
+  uniplate (Check labs typ lv) = plate (Check labs typ lv)
+
+instance Biplate Check Check where
+  biplate = plateSelf
 
 type CheckedLabel = TLabel :*: Check :*: Type :*: Effect
 

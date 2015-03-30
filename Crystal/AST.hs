@@ -1,10 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FlexibleContexts, FlexibleInstances #-}
 module Crystal.AST where
 
-import Control.Lens
+import Control.Lens hiding (plate)
 
 import Data.Generics
-import Data.Generics.PlateData
+import Data.Generics.Uniplate.Direct
 
 import qualified Data.Set as S
 import Control.Monad.RWS
@@ -37,6 +37,58 @@ data InExpr e = Lit    LitVal
               | Lambda [Ident] (Maybe Ident) e
               | Begin  [e]
                 deriving (Show, Read, Ord, Eq, Data, Typeable)
+
+instance Uniplate LitVal where
+  uniplate (LitChar   c)     = plate (LitChar   c)
+  uniplate (LitString s)     = plate (LitString s)
+  uniplate (LitInt    i)     = plate (LitInt    i)
+  uniplate (LitFloat  d)     = plate (LitFloat  d)
+  uniplate (LitBool   b)     = plate (LitBool   b)
+  uniplate (LitSymbol s)     = plate (LitSymbol s)
+  uniplate (LitVoid)         = plate (LitVoid)
+  uniplate (LitList lvs)     = plate LitList ||* lvs
+  uniplate (LitPair one two) = plate LitPair |* one |* two
+
+instance Biplate LitVal LitVal where
+  biplate = plateSelf
+
+instance Uniplate (Expr a) where
+  uniplate (Expr a ie) = plate Expr |- a |+ ie
+
+instance Biplate (Expr a) (Expr a) where
+  biplate = plateSelf
+
+instance Uniplate (InExpr (Expr a)) where
+  uniplate (Lit    lv)            = plate (Lit    lv)
+  uniplate (Ref    r)             = plate (Ref    r)
+  uniplate (Appl   op args)       = plate Appl   |+ op ||+ args
+  uniplate (If     cond cons alt) = plate If     |+ cond |+ cons |+ alt
+  uniplate (Let    bnds bod)      = plate Let    ||+ bnds |+ bod
+  uniplate (LetRec bnds bod)      = plate LetRec ||+ bnds |+ bod
+  uniplate (Lambda ids r bod)     = plate Lambda |- ids |- r |+ bod
+  uniplate (Begin  es)            = plate Begin  ||+ es
+
+instance Biplate (InExpr (Expr a)) (InExpr (Expr a)) where
+  biplate = plateSelf
+
+instance Biplate (Expr a) (InExpr (Expr a)) where
+  biplate (Expr a ie) = plate Expr |- a |* ie
+
+instance Biplate (InExpr (Expr a)) (Expr a) where
+  biplate (Lit    lv)            = plate (Lit    lv)
+  biplate (Ref    r)             = plate (Ref    r)
+  biplate (Appl   op args)       = plate Appl   |* op ||* args
+  biplate (If     cond cons alt) = plate If     |* cond |* cons |* alt
+  biplate (Let    bnds bod)      = plate Let    ||+ bnds |* bod
+  biplate (LetRec bnds bod)      = plate LetRec ||+ bnds |* bod
+  biplate (Lambda ids r bod)     = plate Lambda |- ids |- r |* bod
+  biplate (Begin  es)            = plate Begin  ||* es
+
+instance Biplate (Ident, Expr a) (InExpr (Expr a)) where
+  biplate (i, e) = plate (,) |- i |+ e
+
+instance Biplate (Ident, Expr a) (Expr a) where
+  biplate (i, e) = plate (,) |- i |* e
 
 freeVars :: Expr a -> S.Set Ident
 freeVars ast = snd $ execRWS (fv ast) S.empty ()

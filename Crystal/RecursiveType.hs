@@ -12,7 +12,7 @@ import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Generics
-import Data.Generics.Uniplate.Data
+import Data.Generics.Uniplate.Operations
 
 import Control.Monad
 import Control.Monad.Trans

@@ -14,7 +14,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.Generics.Biplate
+import Data.Generics.Uniplate.Operations
 
 import Crystal.AST
 import Crystal.Config

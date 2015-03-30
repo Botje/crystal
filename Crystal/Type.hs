@@ -1,12 +1,12 @@
-{-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards #-}
+{-#LANGUAGE FlexibleContexts, TypeOperators, DeriveDataTypeable, PatternGuards, MultiParamTypeClasses, FlexibleInstances #-}
 module Crystal.Type  where
 
 import Control.Applicative
-import Control.Lens hiding (transform)
+import Control.Lens hiding (transform, plate)
 import Control.Monad
 import Data.Function
 import Data.Generics
-import Data.Generics.Biplate
+import Data.Generics.Uniplate.Direct
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -72,12 +72,31 @@ data Type = TAny
           | TIf (TLabel,TLabel) Type Type Type -- labels: blame & cause
           | TAppl Type [TypeNLabel]
           | TChain Type TVar TLabel Type
-            deriving (Show, Eq, Ord, Data, Typeable)
+            deriving (Show, Eq, Ord)
+
+instance Uniplate Type where
+  uniplate (TVar tv)             = plate (TVar tv)
+  uniplate (Tor ts)              = plate Tor ||* ts
+  uniplate (TFun vars ef typ)    = plate TFun |- vars |- ef |* typ
+  uniplate (TVarFun vf)          = plate TVarFun |+ vf
+  uniplate (TIf l t_1 t_2 t)     = plate TIf |- l |* t_1 |* t_2 |* t
+  uniplate (TAppl t tls)         = plate TAppl |* t ||+ tls
+  uniplate (TChain t tv lab typ) = plate TChain |+ t |- tv |- lab |* typ
+  uniplate t                     = plate t
+
+instance Biplate Type Type where
+  biplate = plateSelf
+
+instance Biplate VarFun Type where
+  biplate (VarFun n l f) = plate VarFun |- n |- l |- f
+
+instance Biplate (a :*: Type) Type where
+  biplate (l :*: t) = plate (:*:) |- l |* t
+
 
 data VarFun = VarFun { vfName  :: Ident,
                        vfLabel :: TLabel,
                        vfFun   :: [TypeNLabel] -> TLabel -> Type }
-                 deriving (Data, Typeable)
 
 isTor (Tor _) = True
 isTor _______ = False
