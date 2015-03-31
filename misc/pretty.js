@@ -165,8 +165,17 @@ $(function() {
 				exprs = exprs.map(function(x) { return cons(x, line()); });
 				return parens(cons(text("begin"), indent(2, cons.apply(null, exprs))));
 
+			case "ArrayExpression":
+				var exprs = tree.elements;
+				return cons(text("'"), exprs.length == 0 ? text("()") : parens(consS.apply(null, exprs.map(prettyPrint))));
+
+			case "PairExpression":
+				var exprs = tree.elements;
+				return parens(consS(prettyPrint(exprs[0]), text("."), prettyPrint(exprs[0])));
+
 			case "ConditionalExpression":
 				return parens(consS(text("if"), pretty(tree.test), indent(2, pretty(tree.consequent)), indent(2, pretty(tree.alternative))));
+
 			case "Identifier":
 				return text(tree.name);
 

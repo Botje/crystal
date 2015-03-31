@@ -33,6 +33,7 @@ instance ToJSON LitVal where
   toJSON (LitSymbol s) = obj "Literal" [ "value" .= ("'"++show s) ]
   toJSON (LitVoid)     = obj "Literal" [ "value" .= str "#<void>" ]
   toJSON (LitList lvs) = obj "ArrayExpression" [ "elements" .= map toJSON lvs ]
+  toJSON (LitPair a b) = obj "PairExpression" [ "elements" .= map toJSON [a, b] ]
 
 instance ToJSON a => ToJSON (InExpr (Expr a)) where
   toJSON (Lit lit)            = toJSON lit
