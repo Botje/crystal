@@ -58,8 +58,6 @@ test/gabriel/nqueens.sch
 test/gabriel/paraffins.sch
 test/gabriel/peval.sch
 test/gabriel/sboyer.sch
-test/gabriel/scheme2.sch
-test/gabriel/scheme.sch
 test/gabriel/sort1.sch
 test/gabriel/takl.sch
 test/gabriel/takr2.sch
