@@ -163,9 +163,9 @@
     [(list 'letrec bnds bod ..1)
      (eval-letrec bnds bod env)]
     [(list 'lambda args bod ..1)
+     (define function-name (gensym))
      (lambda real-args
        (define start *tick-count*)
-       (define function-name (gensym))
        (define return
          (parameterize ([*current-function* function-name])
             (eval-lambda args bod real-args env)))
