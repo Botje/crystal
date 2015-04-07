@@ -83,7 +83,13 @@
     (for ([nam (in-list nams)]
           [exp (in-list exps)])
       (let ([cell (assocm nam env)])
-        (set-binding-value! cell (eval-begin exp env))))
+        (match exp
+          [(list (and l (list 'lambda args bod ...)))
+           (set-binding-value! cell
+             (create-named-function nam args bod env))]
+          [_ 
+           (set-binding-value! cell
+            (eval-begin exp env))])))
     (eval-begin body env)))
 
 (define (improper-bind vars rest real-args)
@@ -159,6 +165,16 @@
                    (map to-mutable (vector->list v)))]
      [else v]))
 
+(define (create-named-function function-name args bod env)
+  (lambda real-args
+         (define start *tick-count*)
+         (define return
+           (parameterize ([*current-function* function-name])
+              (eval-lambda args bod real-args env)))
+         (define end *tick-count*)
+         (eprintf "FUNCTION ~a ~a~%" function-name (- end start))
+         return))
+
 (define (eval exp env)
   (match exp
     [(list 'quote exp) (to-mutable exp)]
@@ -174,14 +190,7 @@
      (eval-letrec bnds bod env)]
     [(list 'lambda args bod ..1)
      (define function-name (gensym))
-     (lambda real-args
-       (define start *tick-count*)
-       (define return
-         (parameterize ([*current-function* function-name])
-            (eval-lambda args bod real-args env)))
-       (define end *tick-count*)
-       (eprintf "FUNCTION ~a ~a~%" function-name (- end start))
-       return)]
+     (create-named-function function-name args bod env)]
     [(list 'check pred exps ..1)
      (parameterize [(*evaluating-predicate* #t)]
        (when (*counting-checks*)
