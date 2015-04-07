@@ -150,7 +150,6 @@
      [else v]))
 
 (define (eval exp env)
-  (when (pair? exp) (tick))
   (match exp
     [(list 'quote exp) (to-mutable exp)]
     [(list 'if cond cons)
@@ -183,19 +182,22 @@
     [(list 'time exps ...)
      (eval-begin exps env)]
     [(list 'set! var exp)
+     (tick)
      (eval-set! var (eval exp env) env)]
     [(list 'begin)
      (void)]
     [(list 'begin exps ..1)
-		 (eval-begin exps env)]
+     (eval-begin exps env)]
     [(list '@ lab fun args ...)
      (report-tick-for lab env (cons fun args))
      (let ([fval (eval fun env)]
            [vals (map (cut eval <> env) args)])
+       (tick)
        (apply fval vals))]
     [(list fun args ...)
      (let ([fval (eval fun env)]
            [vals (map (cut eval <> env) args)])
+       (tick)
        (apply fval vals))]
     [(? symbol? var) (lookup-variable var env)]
     [self-evaluating (to-mutable self-evaluating)]
