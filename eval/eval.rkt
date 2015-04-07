@@ -2,6 +2,7 @@
 
 (require racket/cmdline)
 (require racket/function)
+(require racket/list)
 (require racket/match)
 (require racket/set)
 (require srfi/26)
@@ -104,6 +105,15 @@
     [any
      (eval-begin bod (cons (new-binding any (to-mutable real-args)) env))]))
 
+(define (find-vars-in-pred pred)
+  (match pred
+    [(list 'or preds ...)
+     (flatten (map find-vars-in-pred preds))]
+    [(list 'and preds ...)
+     (flatten (map find-vars-in-pred preds))]
+    [(list fun var labels ...)
+     (list var)]))
+
 (define (eval-predicate pred env)
   (match pred
     [(list 'or preds ...)
@@ -177,7 +187,9 @@
        (when (*counting-checks*)
          (set! *check-count* (+ *check-count* 1)))
        (unless (eval-predicate pred env)
-         (error "Check failed" pred)))
+         (let* ([vars (find-vars-in-pred pred)]
+                [pairs (flatten (map (lambda (var) (list (symbol->string var) (lookup-variable var env))) vars))])
+           (apply raise-arguments-error 'check  (format "Check failed: ~a" pred) pairs))))
      (eval-begin exps env)]
     [(list 'time exps ...)
      (eval-begin exps env)]
