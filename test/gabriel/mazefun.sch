@@ -89,7 +89,7 @@
 
 (define matrix-size
   (lambda (mat)
-    (cons (length mat) (length (car mat)))))
+    (pair (length mat) (length (car mat)))))
 
 (define matrix-map
   (lambda (f mat)
@@ -122,7 +122,7 @@
         (let ((cave
                (make-matrix n m (lambda (i j)
                                   (if (and (even? i) (even? j))
-                                      (cons i j)
+                                      (pair i j)
                                       #f))))
               (possible-holes
                (concat
@@ -131,7 +131,7 @@
                             (for 0 m (lambda (j)
                                        (if (equal? (even? i) (even? j))
                                            '()
-                                           (list (cons i j)))))))))))
+                                           (list (pair i j)))))))))))
           (cave-to-maze (pierce-randomly (shuffle possible-holes) cave))))))
 
 (define cave-to-maze
@@ -185,16 +185,16 @@
       (let ((n (car size)) (m (cdr size)))
         (let ((i (car pos)) (j (cdr pos)))
           (append (if (and (> i 0) (matrix-read cave (- i 1) j))
-                      (list (cons (- i 1) j))
+                      (list (pair (- i 1) j))
                       '())
                   (if (and (< i (- n 1)) (matrix-read cave (+ i 1) j))
-                      (list (cons (+ i 1) j))
+                      (list (pair (+ i 1) j))
                       '())
                   (if (and (> j 0) (matrix-read cave i (- j 1)))
-                      (list (cons i (- j 1)))
+                      (list (pair i (- j 1)))
                       '())
                   (if (and (< j (- m 1)) (matrix-read cave i (+ j 1)))
-                      (list (cons i (+ j 1)))
+                      (list (pair i (+ j 1)))
                       '())))))))
 
 

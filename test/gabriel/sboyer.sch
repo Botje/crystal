@@ -509,7 +509,7 @@
           (cdr x)
           (let ((r (make-symbol-record sym)))
             (set! *symbol-records-alist*
-                  (cons (cons sym r)
+                  (cons (pair sym r)
                         *symbol-records-alist*))
             r))))
   
@@ -633,7 +633,7 @@
     (if (and (eq? x (car original))
              (eq? y (cdr original)))
         original
-        (cons x y)))
+        (pair x y)))
   
   (define (rewrite term)
     (set! rewrite-count (+ rewrite-count 1))
@@ -672,7 +672,7 @@
                    ((number? term2)          ; This bug fix makes
                     (equal? term1 term2))    ; nboyer 10-25% slower!
                    (else
-                    (set! unify-subst (cons (cons term2 term1)
+                    (set! unify-subst (cons (pair term2 term1)
                                             unify-subst))
                     #t))))
           ((not (pair? term1))

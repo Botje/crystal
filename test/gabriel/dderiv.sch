@@ -36,7 +36,7 @@
  
 (define pg-alist '())
 (define (put sym d what)
-  (set! pg-alist (cons (cons sym what) pg-alist)))
+  (set! pg-alist (cons (pair sym what) pg-alist)))
 (define (get sym d)
   (cdr (assq sym pg-alist)))
 

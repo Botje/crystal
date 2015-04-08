@@ -338,7 +338,7 @@
 ; Return signature (i.e. <arg, res>) given an operation and a node
 
 (define sig
-  (let ((none-comma-any (cons none-node any-node)))
+  (let ((none-comma-any (pair none-node any-node)))
     (lambda (op node)			; Returns (arg, res)
       (let ((the-edge (lookup-op op node)))
 	(if (not (null? the-edge))

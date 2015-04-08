@@ -43,7 +43,7 @@
         lex-first))
 
 (define (make-lattice elem-list cmp-func)
-    (cons elem-list cmp-func))
+    (pair elem-list cmp-func))
 
 (define lattice->elements car)
 
@@ -151,7 +151,7 @@
                     (lambda (x)
                         (maps-rest source target
                             (cons
-                                (cons next x)
+                                (pair next x)
                                 pas)
                             rest
                             to-1
