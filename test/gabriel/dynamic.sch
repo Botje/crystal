@@ -188,7 +188,7 @@
   (letrec ((pfs (lambda (f-env formals)
 		  (cond
 		   ((null? formals)
-		    (cons dynamic-empty-env (dynamic-parse-action-null-formal)))
+		    (pair dynamic-empty-env (dynamic-parse-action-null-formal)))
 		   ((pair? formals)
 		    (let* ((fst-formal (car formals))
 			   (rem-formals (cdr formals))
@@ -199,14 +199,14 @@
 			   (renv-res* (pfs nf-env rem-formals))
 			   (renv (car renv-res*))
 			   (res* (cdr renv-res*)))
-		      (cons
+		      (pair
 		       (extend-env-with-binding renv bind)
 		       (dynamic-parse-action-pair-formal res res*))))
 		   (else
 		    (let* ((bind-res (dynamic-parse-formal f-env formals))
 			   (bind (car bind-res))
 			   (res (cdr bind-res)))
-		      (cons
+		      (pair
 		       (extend-env-with-binding dynamic-empty-env bind)
 		       res)))))))
     (pfs dynamic-empty-env formals)))
@@ -753,7 +753,7 @@
 (define (gen-element info)
   ; generates a new element: the parent field is initialized to '(),
   ; the rank field to 0
-  (cons '() (cons 0 info)))
+  (pair '() (pair 0 info)))
 
 (define info (lambda (l) (cddr l)))
   ; returns the information stored in an element
@@ -891,7 +891,7 @@
 
 (define (gen-type tcon targs)
   ; generates a new type variable with an associated type definition
-  (gen-element (cons (gen-id) (cons tcon targs))))
+  (gen-element (pair (gen-id) (pair tcon targs))))
 
 (define dynamic (gen-element (cons 0 '())))
 ; the special type variable dynamic
@@ -907,7 +907,7 @@
 
 (define (set-def! tvar tcon targs)
   ; sets the type definition part of tvar to type
-  (set-cdr! (info tvar) (cons tcon targs))
+  (set-cdr! (info tvar) (pair tcon targs))
   '())
 
 (define (reset-def! tvar)
@@ -1646,7 +1646,7 @@
 		   t-var))
 	   ((28) (gen-tvar))
 	   (else (error 'ast-gen "Can't handle syntax operator: ~s" syntax-op)))))
-    (cons syntax-op (cons ntvar arg))))
+    (pair syntax-op (pair ntvar arg))))
 
 (define ast-con car)
 ;; extracts the ast-constructor from an abstract syntax tree

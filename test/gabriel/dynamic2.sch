@@ -192,7 +192,7 @@
   (letrec ((pfs (lambda (f-env formals)
 		  (cond
 		   ((null? formals)
-		    (cons dynamic-empty-env (dynamic-parse-action-null-formal)))
+		    (pair dynamic-empty-env (dynamic-parse-action-null-formal)))
 		   ((pair? formals)
 		    (let* ((fst-formal (car formals))
 			   (rem-formals (cdr formals))
@@ -203,14 +203,14 @@
 			   (renv-res* (pfs nf-env rem-formals))
 			   (renv (car renv-res*))
 			   (res* (cdr renv-res*)))
-		      (cons
+		      (pair
 		       (extend-env-with-binding renv bind)
 		       (dynamic-parse-action-pair-formal res res*))))
 		   (else
 		    (let* ((bind-res (dynamic-parse-formal f-env formals))
 			   (bind (car bind-res))
 			   (res (cdr bind-res)))
-		      (cons
+		      (pair
 		       (extend-env-with-binding dynamic-empty-env bind)
 		       res)))))))
     (pfs dynamic-empty-env formals)))
@@ -895,7 +895,7 @@
 
 (define (gen-type tcon targs)
   ; generates a new type variable with an associated type definition
-  (gen-element (vector (gen-id) (cons tcon targs))))
+  (gen-element (vector (gen-id) (pair tcon targs))))
 
 (define dynamic (gen-element (vector 0 '())))
 ; the special type variable dynamic

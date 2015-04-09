@@ -295,7 +295,7 @@
     (define (fix-line line)
       (filter-and-fix
        (lambda (entry) (canonical? (car entry)))
-       (lambda (entry) (cons (car entry)
+       (lambda (entry) (pair (car entry)
 			     (find-canonical-representative (cdr entry) classes)))
        line))
     (if (null? table)
@@ -342,7 +342,7 @@
     (lambda (op node)			; Returns (arg, res)
       (let ((the-edge (lookup-op op node)))
 	(if (not (null? the-edge))
-	    (cons (arg-node the-edge) (res-node the-edge))
+	    (pair (arg-node the-edge) (res-node the-edge))
 	    none-comma-any)))))
 
 ; Selectors from signature
@@ -445,11 +445,11 @@
 
 (define (insert! table x y value)
   (define (make-singleton-table x y)
-    (list (cons x y)))
+    (list (pair x y)))
   (let ((one (assq x (cdr table))))
     (if one
-	(set-cdr! one (cons (cons y value) (cdr one)))
-	(set-cdr! table (cons (cons x (make-singleton-table y value))
+	(set-cdr! one (cons (pair y value) (cdr one)))
+	(set-cdr! table (cons (pair x (make-singleton-table y value))
 			      (cdr table))))))
 
 ;; MEET/JOIN 
