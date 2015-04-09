@@ -6,6 +6,7 @@
 (require racket/match)
 (require racket/set)
 (require srfi/26)
+(require compatibility/mlist)
 
 (require (prefix-in r5rs: r5rs))
 
@@ -94,7 +95,7 @@
 
 (define (improper-bind vars rest real-args)
   (if (null? vars)
-      (list (new-binding rest (to-mutable real-args)))
+      (list (new-binding rest (list->mlist real-args)))
       (cons (new-binding (car vars) (car real-args))
             (improper-bind (cdr vars) rest (cdr real-args)))))
 
@@ -109,7 +110,7 @@
        (apply (curry raise-arity-error 'lambda (make-arity-at-least (length vars))) real-args))
      (eval-begin bod (append (improper-bind vars rest real-args) env))]
     [any
-     (eval-begin bod (cons (new-binding any (to-mutable real-args)) env))]))
+     (eval-begin bod (cons (new-binding any (list->mlist real-args)) env))]))
 
 (define (find-vars-in-pred pred)
   (match pred
@@ -221,7 +222,7 @@
        (tick)
        (apply fval vals))]
     [(? symbol? var) (lookup-variable var env)]
-    [self-evaluating (to-mutable self-evaluating)]
+    [self-evaluating self-evaluating]
     [unknown (error "Cannot evaluate " unknown)]))
 
 (define (our-string-chop str len)
@@ -437,12 +438,12 @@
 			 (new-binding 'tan tan)
 			 (new-binding 'truncate truncate)
        (new-binding 'vector->list r5rs:vector->list)
-       (new-binding 'vector-length vector-length)
-       (new-binding 'vector-ref vector-ref)
+       (new-binding 'vector-length r5rs:vector-length)
+       (new-binding 'vector-ref r5rs:vector-ref)
        (new-binding 'vector-resize our-vector-resize)
-       (new-binding 'vector-set! vector-set!)
-       (new-binding 'vector vector)
-       (new-binding 'vector? vector?)
+       (new-binding 'vector-set! r5rs:vector-set!)
+       (new-binding 'vector r5rs:vector)
+       (new-binding 'vector? r5rs:vector?)
        (new-binding 'void? void?)
        (new-binding 'void void)
        (new-binding 'with-input-from-file with-input-from-file)
