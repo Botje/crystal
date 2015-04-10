@@ -168,13 +168,7 @@
 
 (define (create-named-function function-name args bod env)
   (lambda real-args
-         (define start *tick-count*)
-         (define return
-           (parameterize ([*current-function* function-name])
               (eval-lambda args bod real-args env)))
-         (define end *tick-count*)
-         (eprintf "FUNCTION ~a ~a~%" function-name (- end start))
-         return))
 
 (define (eval exp env)
   (match exp
