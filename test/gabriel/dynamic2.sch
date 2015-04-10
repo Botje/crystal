@@ -974,7 +974,7 @@
 (define (null)
   ; ***Note***: Temporarily changed to be a pair!
   ; (gen-type null-con '())
-  (pair (gen-tvar) (gen-tvar)))
+  (pair_ (gen-tvar) (gen-tvar)))
 (define (boolean)
   (gen-type boolean-con '()))
 (define (character)
@@ -985,7 +985,7 @@
   (gen-type string-con '()))
 (define (symbol)
   (gen-type symbol-con '()))
-(define (pair tvar-1 tvar-2)
+(define (pair_ tvar-1 tvar-2)
   (gen-type pair-con (list tvar-1 tvar-2)))
 (define (array tvar)
   (gen-type vector-con (list tvar)))
@@ -1571,7 +1571,7 @@
 		  (array aux-tvar)))
 	   ((7 30 32) (let ((t1 (ast-tvar (car arg)))
 			    (t2 (ast-tvar (cdr arg))))
-			(pair t1 t2)))
+			(pair_ t1 t2)))
 	   ((8) (gen-tvar))
 	   ((9) (ast-tvar arg))
 	   ((10) (let ((in-env (dynamic-lookup arg dynamic-top-level-env)))
@@ -1676,7 +1676,7 @@
   ;; converts a list of tvars to a single tvar
   (cond
    ((null? tvar-list) (null))
-   ((pair? tvar-list) (pair (car tvar-list)
+   ((pair? tvar-list) (pair_ (car tvar-list)
 			    (convert-tvars (cdr tvar-list))))
    (else (error 'convert-tvars "Not a list of tvars: ~s" tvar-list))))
 
@@ -2031,108 +2031,108 @@
 ; type environment for pairs and lists
 
 (define (list-type tv)
-  (fix (lambda (tv2) (pair tv tv2))))
+  (fix (lambda (tv2) (pair_ tv tv2))))
 
 (define list-env
   (list
    (cons 'pair? (forall2 (lambda (tv1 tv2)
-			   (procedure (convert-tvars (list (pair tv1 tv2)))
+			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
    (cons 'null? (forall2 (lambda (tv1 tv2)
-			   (procedure (convert-tvars (list (pair tv1 tv2)))
+			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
    (cons 'list? (forall2 (lambda (tv1 tv2)
-			   (procedure (convert-tvars (list (pair tv1 tv2)))
+			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
    (cons 'cons (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars (list tv1 tv2))
-				     (pair tv1 tv2)))))
+				     (pair_ tv1 tv2)))))
    (cons 'car (forall2 (lambda (tv1 tv2)
-			 (procedure (convert-tvars (list (pair tv1 tv2)))
+			 (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				    tv1))))
    (cons 'cdr (forall2 (lambda (tv1 tv2)
-			 (procedure (convert-tvars (list (pair tv1 tv2)))
+			 (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				    tv2))))
    (cons 'set-car! (forall2 (lambda (tv1 tv2)
-			      (procedure (convert-tvars (list (pair tv1 tv2)
+			      (procedure (convert-tvars (list (pair_ tv1 tv2)
 							      tv1))
 					 dynamic))))
    (cons 'set-cdr! (forall2 (lambda (tv1 tv2)
-			      (procedure (convert-tvars (list (pair tv1 tv2)
+			      (procedure (convert-tvars (list (pair_ tv1 tv2)
 							      tv2))
 					 dynamic))))
    (cons 'caar (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
-				      (list (pair (pair tv1 tv2) tv3)))
+				      (list (pair_ (pair_ tv1 tv2) tv3)))
 				     tv1))))
    (cons 'cdar (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
-				      (list (pair (pair tv1 tv2) tv3)))
+				      (list (pair_ (pair_ tv1 tv2) tv3)))
 				     tv2))))
 
    (cons 'cadr (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
-				      (list (pair tv1 (pair tv2 tv3))))
+				      (list (pair_ tv1 (pair_ tv2 tv3))))
 				     tv2))))
    (cons 'cddr (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
-				      (list (pair tv1 (pair tv2 tv3))))
+				      (list (pair_ tv1 (pair_ tv2 tv3))))
 				     tv3))))
    (cons 'caaar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair (pair (pair tv1 tv2) tv3) tv4)))
+			       (list (pair_ (pair_ (pair_ tv1 tv2) tv3) tv4)))
 			      tv1))))
    (cons 'cdaar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair (pair (pair tv1 tv2) tv3) tv4)))
+			       (list (pair_ (pair_ (pair_ tv1 tv2) tv3) tv4)))
 			      tv2))))
    (cons 'cadar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair (pair tv1 (pair tv2 tv3)) tv4)))
+			       (list (pair_ (pair_ tv1 (pair_ tv2 tv3)) tv4)))
 			      tv2))))
    (cons 'cddar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair (pair tv1 (pair tv2 tv3)) tv4)))
+			       (list (pair_ (pair_ tv1 (pair_ tv2 tv3)) tv4)))
 			      tv3))))
    (cons 'caadr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair tv1 (pair (pair tv2 tv3) tv4))))
+			       (list (pair_ tv1 (pair_ (pair_ tv2 tv3) tv4))))
 			      tv2))))
    (cons 'cdadr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair tv1 (pair (pair tv2 tv3) tv4))))
+			       (list (pair_ tv1 (pair_ (pair_ tv2 tv3) tv4))))
 			      tv3))))
    (cons 'caddr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair tv1 (pair tv2 (pair tv3 tv4)))))
+			       (list (pair_ tv1 (pair_ tv2 (pair_ tv3 tv4)))))
 			      tv3))))
    (cons 'cdddr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
-			       (list (pair tv1 (pair tv2 (pair tv3 tv4)))))
+			       (list (pair_ tv1 (pair_ tv2 (pair_ tv3 tv4)))))
 			      tv4))))
    (cons 'cadddr
          (forall5 (lambda (tv1 tv2 tv3 tv4 tv5)
                     (procedure (convert-tvars
-				(list (pair tv1
-					    (pair tv2
-						  (pair tv3
-							(pair tv4 tv5))))))
+				(list (pair_ tv1
+					    (pair_ tv2
+						  (pair_ tv3
+							(pair_ tv4 tv5))))))
 			       tv4))))
    (cons 'cddddr
          (forall5 (lambda (tv1 tv2 tv3 tv4 tv5)
                     (procedure (convert-tvars
-				(list (pair tv1
-					    (pair tv2
-						  (pair tv3
-							(pair tv4 tv5))))))
+				(list (pair_ tv1
+					    (pair_ tv2
+						  (pair_ tv3
+							(pair_ tv4 tv5))))))
 			       tv5))))
    (cons 'list (forall (lambda (tv)
 			 (procedure tv tv))))
@@ -2165,18 +2165,18 @@
    (cons 'assq (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars
 				      (list tv1
-					    (list-type (pair tv1 tv2))))
-				     (pair tv1 tv2)))))
+					    (list-type (pair_ tv1 tv2))))
+				     (pair_ tv1 tv2)))))
    (cons 'assv (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars
 				      (list tv1
-					    (list-type (pair tv1 tv2))))
-				     (pair tv1 tv2)))))
+					    (list-type (pair_ tv1 tv2))))
+				     (pair_ tv1 tv2)))))
    (cons 'assoc (forall2 (lambda (tv1 tv2)
 			   (procedure (convert-tvars
 				       (list tv1
-					     (list-type (pair tv1 tv2))))
-				      (pair tv1 tv2)))))
+					     (list-type (pair_ tv1 tv2))))
+				      (pair_ tv1 tv2)))))
    ))
 
 
