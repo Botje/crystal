@@ -29,7 +29,7 @@
 
 ; bindings
 
-(define gen-binding cons)
+(define gen-binding pair)
 ; generates a type binding, binding a symbol to a type variable
 
 (define binding-key car)
@@ -48,8 +48,8 @@
 
 (define (binding-show binding)
   ; returns a printable representation of a type binding
-  (cons (key-show (binding-key binding))
-	(cons ': (value-show (binding-value binding)))))
+  (pair (key-show (binding-key binding))
+	(pair ': (value-show (binding-value binding)))))
 
 
 ; environments
@@ -147,7 +147,7 @@
        ((dynamic-lookup e f-env)
 	(error 'dynamic-parse-formal "Duplicate variable definition: ~s" e))
        (else (let ((dynamic-parse-action-result (dynamic-parse-action-var-def e)))
-	       (cons (gen-binding e dynamic-parse-action-result)
+	       (pair (gen-binding e dynamic-parse-action-result)
 		     dynamic-parse-action-result))))
       (error 'dynamic-parse-formal "Not an identifier: ~s" e)))
 
@@ -165,7 +165,7 @@
 	  ;; Note: generates the results of formals in reverse order!
 	  (cond
 	   ((null? formals)
-	    (cons f-env results))
+	    (pair f-env results))
 	   ((pair? formals)
 	    (let* ((fst-formal (car formals))
 		   (binding-result (dynamic-parse-formal f-env fst-formal))
@@ -173,11 +173,11 @@
 		   (var-result (cdr binding-result)))
 	      (pf*
 	       (extend-env-with-binding f-env binding)
-	       (cons var-result results)
+	       (pair var-result results)
 	       (cdr formals))))
 	   (else (error 'dynamic-parse-formal* "Illegal formals: ~s" formals))))))
     (let ((renv-rres (pf* dynamic-empty-env '() formals)))
-      (cons (car renv-rres) (reverse (cdr renv-rres))))))
+      (pair (car renv-rres) (reverse (cdr renv-rres))))))
 
 
 ; dynamic-parse-formals: parses <formals>
@@ -512,7 +512,7 @@
 	    (bresults (cdr env-formals-asg))
 	    (exprs-asg
 	     (dynamic-parse-expression* env (map cadr bindings))))
-	(cons nenv (cons bresults exprs-asg)))
+	(pair nenv (cons bresults exprs-asg)))
       (error 'dynamic-parse-parallel-bindings
 	     "Not a list of bindings: ~s" bindings)))
 
@@ -547,7 +547,7 @@
 	  ;; binds: reminding bindings to process
 	  (cond
 	   ((null? binds)
-	    (cons f-env (cons var-defs expr-asgs)))
+	    (pair f-env (cons var-defs expr-asgs)))
 	   ((pair? binds)
 	    (let ((fst-bind (car binds)))
 	      (if (list-of-2? fst-bind)
@@ -568,7 +568,7 @@
 	   (else (error 'dynamic-parse-sequential-bindings
 			"Illegal bindings: ~s" binds))))))
     (let ((env-vdefs-easgs (psb dynamic-empty-env env '() '() bindings)))
-      (cons (car env-vdefs-easgs)
+      (pair (car env-vdefs-easgs)
 	    (cons (reverse (cadr env-vdefs-easgs))
 		  (reverse (cddr env-vdefs-easgs)))))))
 
@@ -602,7 +602,7 @@
 	      (dynamic-parse-expression*
 	       (extend-env-with-env env formals-env)
 	       (map cadr bindings))))
-	(cons
+	(pair
 	 formals-env
 	 (cons formals-res exprs-asg)))
       (error 'dynamic-parse-recursive-bindings "Illegal bindings: ~s" bindings)))
@@ -887,13 +887,13 @@
   ; cadr:    Number (the rank field; is always nonnegative)
   ; caddr:   Symbol (the type variable identifier; used only for printing)
   ; cdddr:   Type (the leq field; initially null)
-  (gen-element (cons (gen-id) '())))
+  (gen-element (pair (gen-id) '())))
 
 (define (gen-type tcon targs)
   ; generates a new type variable with an associated type definition
   (gen-element (pair (gen-id) (pair tcon targs))))
 
-(define dynamic (gen-element (cons 0 '())))
+(define dynamic (gen-element (pair 0 '())))
 ; the special type variable dynamic
 ; Generic operations
 
@@ -1108,7 +1108,7 @@
 
 ; constraints
 
-(define gen-constr (lambda (a b) (cons a b)))
+(define gen-constr (lambda (a b) (pair a b)))
 ; generates an equality between tvar1 and tvar2
 
 (define constr-lhs (lambda (c) (car c)))
@@ -1118,9 +1118,9 @@
 ; returns the right-hand side of a constraint
 
 (define (constr-show c)
-  (cons (tvar-show (car c)) 
-	(cons '= 
-	      (cons (tvar-show (cdr c)) '()))))
+  (pair (tvar-show (car c)) 
+	(pair '= 
+	      (pair (tvar-show (cdr c)) '()))))
 
 
 ; constraint set management
@@ -1317,7 +1317,7 @@
   ;; dynamic-parse-action for non-null list of formals;
   ;; d1 is the result of parsing the first formal,
   ;; d2 the result of parsing the remaining formals
-  (ast-gen pair-def (cons d1 d2)))
+  (ast-gen pair-def (pair d1 d2)))
 
 (define (dynamic-parse-action-variable e)
   ;; dynamic-parse-action for applied occurrences of variables
@@ -1339,7 +1339,7 @@
   ;; dynamic-parse-action for a non-null list of arguments in a procedure call
   ;; a1 is the result of parsing the first argument, 
   ;; a2 the result of parsing the remaining arguments
-  (ast-gen pair-arg (cons a1 a2)))
+  (ast-gen pair-arg (pair a1 a2)))
 
 (define (dynamic-parse-action-procedure-call op args)
   ;; dynamic-parse-action for procedure calls: op function, args list of arguments
@@ -1347,11 +1347,11 @@
 
 (define (dynamic-parse-action-lambda-expression formals body)
   ;; dynamic-parse-action for lambda-abstractions
-  (ast-gen lambda-expression (cons formals body)))
+  (ast-gen lambda-expression (pair formals body)))
 
 (define (dynamic-parse-action-conditional test then-branch else-branch)
   ;; dynamic-parse-action for conditionals (if-then-else expressions)
-  (ast-gen conditional (cons test (cons then-branch else-branch))))
+  (ast-gen conditional (pair test (pair then-branch else-branch))))
 
 (define (dynamic-parse-action-empty)
   ;; dynamic-parse-action for missing or empty field
@@ -1359,7 +1359,7 @@
 
 (define (dynamic-parse-action-assignment lhs rhs)
   ;; dynamic-parse-action for assignment
-  (ast-gen assignment (cons lhs rhs)))
+  (ast-gen assignment (pair lhs rhs)))
 
 (define (dynamic-parse-action-begin-expression body)
   ;; dynamic-parse-action for begin-expression
@@ -1379,34 +1379,34 @@
 
 (define (dynamic-parse-action-case-expression key clauses)
   ;; dynamic-parse-action for case-expressions
-  (ast-gen case-expression (cons key clauses)))
+  (ast-gen case-expression (pair key clauses)))
 
 (define (dynamic-parse-action-let-expression bindings body)
   ;; dynamic-parse-action for let-expressions
-  (ast-gen let-expression (cons bindings body)))
+  (ast-gen let-expression (pair bindings body)))
 
 (define (dynamic-parse-action-named-let-expression variable bindings body)
   ;; dynamic-parse-action for named-let expressions
-  (ast-gen named-let-expression (cons variable (cons bindings body))))
+  (ast-gen named-let-expression (pair variable (pair bindings body))))
 
 (define (dynamic-parse-action-let*-expression bindings body)
   ;; dynamic-parse-action for let-expressions
-  (ast-gen let*-expression (cons bindings body)))
+  (ast-gen let*-expression (pair bindings body)))
 
 (define (dynamic-parse-action-letrec-expression bindings body)
   ;; dynamic-parse-action for let-expressions
-  (ast-gen letrec-expression (cons bindings body)))
+  (ast-gen letrec-expression (pair bindings body)))
 
 (define (dynamic-parse-action-definition variable expr)
   ;; dynamic-parse-action for simple definitions
-  (ast-gen definition (cons variable expr)))
+  (ast-gen definition (pair variable expr)))
 
 (define (dynamic-parse-action-function-definition variable formals body)
   ;; dynamic-parse-action for function definitions
-  (ast-gen function-definition (cons variable (cons formals body))))
+  (ast-gen function-definition (pair variable (pair formals body))))
 
 
-(define dynamic-parse-action-commands (lambda (a b) (cons a b)))
+(define dynamic-parse-action-commands (lambda (a b) (pair a b)))
 ;; dynamic-parse-action for processing a command result followed by a the
 ;; result of processing the remaining commands
 
@@ -1421,86 +1421,86 @@
     (case syntax-op
       ((0 1 2 3 4 8 10) syntax-arg)
       ((29 31) '())
-      ((30 32) (cons (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
+      ((30 32) (pair (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
       ((5) (list 'quote syntax-arg))
       ((6) (list->vector (map ast-show syntax-arg)))
       ((7) (list 'cons (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
       ((9) (ast-arg syntax-arg))
-      ((11) (cons (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
-      ((12) (cons 'lambda (cons (ast-show (car syntax-arg)) 
+      ((11) (pair (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
+      ((12) (pair 'lambda (pair (ast-show (car syntax-arg)) 
 				(map ast-show (cdr syntax-arg)))))
-      ((13) (cons 'if (cons (ast-show (car syntax-arg))
-			    (cons (ast-show (cadr syntax-arg))
+      ((13) (pair 'if (pair (ast-show (car syntax-arg))
+			    (pair (ast-show (cadr syntax-arg))
 				  (let ((alt (cddr syntax-arg)))
 				    (if (eqv? (ast-con alt) empty)
 					'()
 					(list (ast-show alt))))))))
       ((14) (list 'set! (ast-show (car syntax-arg)) (ast-show (cdr syntax-arg))))
-      ((15) (cons 'cond
+      ((15) (pair 'cond
 		  (map (lambda (cc)
 			 (let ((guard (car cc))
 			       (body (cdr cc)))
-			   (cons
+			   (pair
 			    (if (eqv? (ast-con guard) empty)
 				'else
 				(ast-show guard))
 			    (map ast-show body))))
 		       syntax-arg)))
-      ((16) (cons 'case
-		  (cons (ast-show (car syntax-arg))
+      ((16) (pair 'case
+		  (pair (ast-show (car syntax-arg))
 			(map (lambda (cc)
 			       (let ((data (car cc)))
 				 (if (and (pair? data)
 					  (eqv? (ast-con (car data)) empty))
-				     (cons 'else
+				     (pair 'else
 					   (map ast-show (cdr cc)))
-				     (cons (map datum-show data)
+				     (pair (map datum-show data)
 					   (map ast-show (cdr cc))))))
 			     (cdr syntax-arg)))))
-      ((17) (cons 'and (map ast-show syntax-arg)))
-      ((18) (cons 'or (map ast-show syntax-arg)))
-      ((19) (cons 'let
-		  (cons (map
+      ((17) (pair 'and (map ast-show syntax-arg)))
+      ((18) (pair 'or (map ast-show syntax-arg)))
+      ((19) (pair 'let
+		  (pair (map
 			 (lambda (vd e)
 			   (list (ast-show vd) (ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map ast-show (cdr syntax-arg)))))
-      ((20) (cons 'let
-		  (cons (ast-show (car syntax-arg))
-			(cons (map
+      ((20) (pair 'let
+		  (pair (ast-show (car syntax-arg))
+			(pair (map
 			       (lambda (vd e)
 				 (list (ast-show vd) (ast-show e)))
 			       (caadr syntax-arg)
 			       (cdadr syntax-arg))
 			      (map ast-show (cddr syntax-arg))))))
-      ((21) (cons 'let*
-		  (cons (map
+      ((21) (pair 'let*
+		  (pair (map
 			 (lambda (vd e)
 			   (list (ast-show vd) (ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map ast-show (cdr syntax-arg)))))
-      ((22) (cons 'letrec
-		  (cons (map
+      ((22) (pair 'letrec
+		  (pair (map
 			 (lambda (vd e)
 			   (list (ast-show vd) (ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map ast-show (cdr syntax-arg)))))
-      ((23) (cons 'begin
+      ((23) (pair 'begin
 		  (map ast-show syntax-arg)))
       ((24) (error 'ast-show "Do expressions not handled! (~s)" syntax-arg))
       ((25) (error 'ast-show "This can't happen: empty encountered!"))
       ((26) (list 'define
 		  (ast-show (car syntax-arg))
 		  (ast-show (cdr syntax-arg))))
-      ((27) (cons 'define
-		  (cons
-		   (cons (ast-show (car syntax-arg))
+      ((27) (pair 'define
+		  (pair
+		   (pair (ast-show (car syntax-arg))
 			 (ast-show (cadr syntax-arg)))
 		   (map ast-show (cddr syntax-arg)))))
-      ((28) (cons 'begin
+      ((28) (pair 'begin
 		  (map ast-show syntax-arg)))
       (else (error 'ast-show "Unknown abstract syntax operator: ~s"
 		   syntax-op)))))
@@ -1520,7 +1520,7 @@
   (case (ast-con ast)
     ((0 1 2 3 4 5) (ast-arg ast))
     ((6) (list->vector (map datum-show (ast-arg ast))))
-    ((7) (cons (datum-show (car (ast-arg ast))) (datum-show (cdr (ast-arg ast)))))
+    ((7) (pair (datum-show (car (ast-arg ast))) (datum-show (cdr (ast-arg ast)))))
     (else (error 'datum-show "This should not happen!"))))
 
 ; write-to-port
@@ -1684,93 +1684,93 @@
   (let ((syntax-op (ast-con ast))
         (syntax-tvar (tvar-show (ast-tvar ast)))
 	(syntax-arg (ast-arg ast)))
-    (cons
+    (pair
      (case syntax-op
        ((0 1 2 3 4 8 10) syntax-arg)
        ((29 31) '())
-       ((30 32) (cons (tast-show (car syntax-arg))
+       ((30 32) (pair (tast-show (car syntax-arg))
 		      (tast-show (cdr syntax-arg))))
        ((5) (list 'quote syntax-arg))
        ((6) (list->vector (map tast-show syntax-arg)))
        ((7) (list 'cons (tast-show (car syntax-arg))
 		  (tast-show (cdr syntax-arg))))
        ((9) (ast-arg syntax-arg))
-       ((11) (cons (tast-show (car syntax-arg)) (tast-show (cdr syntax-arg))))
-       ((12) (cons 'lambda (cons (tast-show (car syntax-arg))
+       ((11) (pair (tast-show (car syntax-arg)) (tast-show (cdr syntax-arg))))
+       ((12) (pair 'lambda (pair (tast-show (car syntax-arg))
 				 (map tast-show (cdr syntax-arg)))))
-       ((13) (cons 'if (cons (tast-show (car syntax-arg))
-			     (cons (tast-show (cadr syntax-arg))
+       ((13) (pair 'if (pair (tast-show (car syntax-arg))
+			     (pair (tast-show (cadr syntax-arg))
 				   (let ((alt (cddr syntax-arg)))
 				     (if (eqv? (ast-con alt) empty)
 					 '()
 					 (list (tast-show alt))))))))
        ((14) (list 'set! (tast-show (car syntax-arg))
 		   (tast-show (cdr syntax-arg))))
-       ((15) (cons 'cond
+       ((15) (pair 'cond
 		   (map (lambda (cc)
 			  (let ((guard (car cc))
 				(body (cdr cc)))
-			    (cons
+			    (pair
 			     (if (eqv? (ast-con guard) empty)
 				 'else
 				 (tast-show guard))
 			     (map tast-show body))))
 			syntax-arg)))
-       ((16) (cons 'case
-		   (cons (tast-show (car syntax-arg))
+       ((16) (pair 'case
+		   (pair (tast-show (car syntax-arg))
 			 (map (lambda (cc)
 				(let ((data (car cc)))
 				  (if (and (pair? data)
 					   (eqv? (ast-con (car data)) empty))
-				      (cons 'else
+				      (pair 'else
 					    (map tast-show (cdr cc)))
-				      (cons (map datum-show data)
+				      (pair (map datum-show data)
 					    (map tast-show (cdr cc))))))
 			      (cdr syntax-arg)))))
-       ((17) (cons 'and (map tast-show syntax-arg)))
-       ((18) (cons 'or (map tast-show syntax-arg)))
-       ((19) (cons 'let
-		   (cons (map
+       ((17) (pair 'and (map tast-show syntax-arg)))
+       ((18) (pair 'or (map tast-show syntax-arg)))
+       ((19) (pair 'let
+		   (pair (map
 			  (lambda (vd e)
 			    (list (tast-show vd) (tast-show e)))
 			  (caar syntax-arg)
 			  (cdar syntax-arg))
 			 (map tast-show (cdr syntax-arg)))))
-       ((20) (cons 'let
-		   (cons (tast-show (car syntax-arg))
-			 (cons (map
+       ((20) (pair 'let
+		   (pair (tast-show (car syntax-arg))
+			 (pair (map
 				(lambda (vd e)
 				  (list (tast-show vd) (tast-show e)))
 				(caadr syntax-arg)
 				(cdadr syntax-arg))
 			       (map tast-show (cddr syntax-arg))))))
-       ((21) (cons 'let*
-		   (cons (map
+       ((21) (pair 'let*
+		   (pair (map
 			  (lambda (vd e)
 			    (list (tast-show vd) (tast-show e)))
 			  (caar syntax-arg)
 			  (cdar syntax-arg))
 			 (map tast-show (cdr syntax-arg)))))
-       ((22) (cons 'letrec
-		   (cons (map
+       ((22) (pair 'letrec
+		   (pair (map
 			  (lambda (vd e)
 			    (list (tast-show vd) (tast-show e)))
 			  (caar syntax-arg)
 			  (cdar syntax-arg))
 			 (map tast-show (cdr syntax-arg)))))
-       ((23) (cons 'begin
+       ((23) (pair 'begin
 		   (map tast-show syntax-arg)))
        ((24) (error 'tast-show "Do expressions not handled! (~s)" syntax-arg))
        ((25) (error 'tast-show "This can't happen: empty encountered!"))
        ((26) (list 'define
 		   (tast-show (car syntax-arg))
 		   (tast-show (cdr syntax-arg))))
-       ((27) (cons 'define
-		   (cons
-		    (cons (tast-show (car syntax-arg))
+       ((27) (pair 'define
+		   (pair
+		    (pair (tast-show (car syntax-arg))
 			  (tast-show (cadr syntax-arg)))
 		    (map tast-show (cddr syntax-arg)))))
-       ((28) (cons 'begin
+       ((28) (pair 'begin
 		   (map tast-show syntax-arg)))
        (else (error 'tast-show "Unknown abstract syntax operator: ~s"
 		    syntax-op)))
@@ -1802,9 +1802,9 @@
 
 (define (counters-show)
   (list
-   (cons tag-counter no-tag-counter)
-   (cons untag-counter no-untag-counter)
-   (cons may-untag-counter no-may-untag-counter)))  
+   (pair tag-counter no-tag-counter)
+   (pair untag-counter no-untag-counter)
+   (pair may-untag-counter no-may-untag-counter)))  
 
 
 ;; tag-show
@@ -1856,9 +1856,9 @@
        (tag-show syntax-tvar syntax-arg))
       ((8 10) syntax-arg)
       ((29 31) '())
-      ((30) (cons (tag-ast-show (car syntax-arg))
+      ((30) (pair (tag-ast-show (car syntax-arg))
                   (tag-ast-show (cdr syntax-arg))))
-      ((32) (cons (may-untag-show (find! (ast-tvar (car syntax-arg)))
+      ((32) (pair (may-untag-show (find! (ast-tvar (car syntax-arg)))
                               (tag-ast-show (car syntax-arg)))
                   (tag-ast-show (cdr syntax-arg))))
       ((5) (tag-show syntax-tvar (list 'quote syntax-arg)))
@@ -1867,84 +1867,84 @@
 				       (tag-ast-show (cdr syntax-arg)))))
       ((9) (ast-arg syntax-arg))
       ((11) (let ((proc-tvar (find! (ast-tvar (car syntax-arg)))))
-	      (cons (untag-show proc-tvar 
+	      (pair (untag-show proc-tvar 
 				(tag-ast-show (car syntax-arg)))
 		    (tag-ast-show (cdr syntax-arg)))))
       ((12) (tag-show syntax-tvar
-		      (cons 'lambda (cons (tag-ast-show (car syntax-arg))
+		      (pair 'lambda (pair (tag-ast-show (car syntax-arg))
 					  (map tag-ast-show (cdr syntax-arg))))))
       ((13) (let ((test-tvar (find! (ast-tvar (car syntax-arg)))))
-	      (cons 'if (cons (untag-show test-tvar
+	      (pair 'if (pair (untag-show test-tvar
 					  (tag-ast-show (car syntax-arg)))
-			      (cons (tag-ast-show (cadr syntax-arg))
+			      (pair (tag-ast-show (cadr syntax-arg))
 				    (let ((alt (cddr syntax-arg)))
 				      (if (eqv? (ast-con alt) empty)
 					  '()
 					  (list (tag-ast-show alt)))))))))
       ((14) (list 'set! (tag-ast-show (car syntax-arg))
                   (tag-ast-show (cdr syntax-arg))))
-      ((15) (cons 'cond
+      ((15) (pair 'cond
 		  (map (lambda (cc)
 			 (let ((guard (car cc))
 			       (body (cdr cc)))
-			   (cons
+			   (pair
 			    (if (eqv? (ast-con guard) empty)
 				'else
 				(untag-show (find! (ast-tvar guard))
 					    (tag-ast-show guard)))
 			    (map tag-ast-show body))))
 		       syntax-arg)))
-      ((16) (cons 'case
-		  (cons (tag-ast-show (car syntax-arg))
+      ((16) (pair 'case
+		  (pair (tag-ast-show (car syntax-arg))
 			(map (lambda (cc)
 			       (let ((data (car cc)))
 				 (if (and (pair? data)
 					  (eqv? (ast-con (car data)) empty))
-				     (cons 'else
+				     (pair 'else
 					   (map tag-ast-show (cdr cc)))
-				     (cons (map datum-show data)
+				     (pair (map datum-show data)
 					   (map tag-ast-show (cdr cc))))))
 			     (cdr syntax-arg)))))
-      ((17) (cons 'and (map
+      ((17) (pair 'and (map
 			(lambda (ast)
 			  (let ((bool-tvar (find! (ast-tvar ast))))
 			    (untag-show bool-tvar (tag-ast-show ast))))
 			syntax-arg)))
-      ((18) (cons 'or (map
+      ((18) (pair 'or (map
 		       (lambda (ast)
 			 (let ((bool-tvar (find! (ast-tvar ast))))
 			   (untag-show bool-tvar (tag-ast-show ast))))
 		       syntax-arg)))
-      ((19) (cons 'let
-		  (cons (map
+      ((19) (pair 'let
+		  (pair (map
 			 (lambda (vd e)
 			   (list (tag-ast-show vd) (tag-ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map tag-ast-show (cdr syntax-arg)))))
-      ((20) (cons 'let
-		  (cons (tag-ast-show (car syntax-arg))
-			(cons (map
+      ((20) (pair 'let
+		  (pair (tag-ast-show (car syntax-arg))
+			(pair (map
 			       (lambda (vd e)
 				 (list (tag-ast-show vd) (tag-ast-show e)))
 			       (caadr syntax-arg)
 			       (cdadr syntax-arg))
 			      (map tag-ast-show (cddr syntax-arg))))))
-      ((21) (cons 'let*
-		  (cons (map
+      ((21) (pair 'let*
+		  (pair (map
 			 (lambda (vd e)
 			   (list (tag-ast-show vd) (tag-ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map tag-ast-show (cdr syntax-arg)))))
-      ((22) (cons 'letrec
-		  (cons (map
+      ((22) (pair 'letrec
+		  (pair (map
 			 (lambda (vd e)
 			   (list (tag-ast-show vd) (tag-ast-show e)))
 			 (caar syntax-arg)
 			 (cdar syntax-arg))
 			(map tag-ast-show (cdr syntax-arg)))))
-      ((23) (cons 'begin
+      ((23) (pair 'begin
 		  (map tag-ast-show syntax-arg)))
       ((24) (error 'tag-ast-show "Do expressions not handled! (~s)" syntax-arg))
       ((25) (error 'tag-ast-show "This can't happen: empty encountered!"))
@@ -1955,10 +1955,10 @@
 	      (list 'define
 		    (tag-ast-show (car syntax-arg))
 		    (tag-show func-tvar
-			      (cons 'lambda
-				    (cons (tag-ast-show (cadr syntax-arg))
+			      (pair 'lambda
+				    (pair (tag-ast-show (cadr syntax-arg))
 					  (map tag-ast-show (cddr syntax-arg))))))))
-      ((28) (cons 'begin
+      ((28) (pair 'begin
 		  (map tag-ast-show syntax-arg)))
       (else (error 'tag-ast-show "Unknown abstract syntax operator: ~s"
 		   syntax-op)))))
@@ -1985,12 +1985,12 @@
 
 (define misc-env
   (list
-   (cons 'quote (forall (lambda (tv) tv)))
-   (cons 'eqv? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
+   (pair 'quote (forall (lambda (tv) tv)))
+   (pair 'eqv? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
 					       (boolean)))))
-   (cons 'eq? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
+   (pair 'eq? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
 					      (boolean)))))
-   (cons 'equal? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
+   (pair 'equal? (forall (lambda (tv) (procedure (convert-tvars (list tv tv))
 						 (boolean)))))
    ))
 
@@ -1998,16 +1998,16 @@
 
 (define io-env
   (list
-   (cons 'open-input-file (procedure (convert-tvars (list (charseq))) dynamic))
-   (cons 'eof-object? (procedure (convert-tvars (list dynamic)) (boolean)))
-   (cons 'read (forall (lambda (tv)
+   (pair 'open-input-file (procedure (convert-tvars (list (charseq))) dynamic))
+   (pair 'eof-object? (procedure (convert-tvars (list dynamic)) (boolean)))
+   (pair 'read (forall (lambda (tv)
 			 (procedure (convert-tvars (list tv)) dynamic))))
-   (cons 'write (forall (lambda (tv)
+   (pair 'write (forall (lambda (tv)
 			  (procedure (convert-tvars (list tv)) dynamic))))
-   (cons 'display (forall (lambda (tv)
+   (pair 'display (forall (lambda (tv)
 			    (procedure (convert-tvars (list tv)) dynamic))))
-   (cons 'newline (procedure (null) dynamic))
-   (cons 'pretty-print (forall (lambda (tv)
+   (pair 'newline (procedure (null) dynamic))
+   (pair 'pretty-print (forall (lambda (tv)
 				 (procedure (convert-tvars (list tv)) dynamic))))))
 
 
@@ -2015,12 +2015,12 @@
 
 (define boolean-env
   (list
-   (cons 'boolean? (forall (lambda (tv)
+   (pair 'boolean? (forall (lambda (tv)
 			     (procedure (convert-tvars (list tv)) (boolean)))))
-   ;(cons #f (boolean))
+   ;(pair #f (boolean))
    ; #f doesn't exist in Chez Scheme, but gets mapped to null!
-   (cons #t (boolean))
-   (cons 'not (procedure (convert-tvars (list (boolean))) (boolean)))
+   (pair #t (boolean))
+   (pair 'not (procedure (convert-tvars (list (boolean))) (boolean)))
    ))
 
 
@@ -2031,90 +2031,90 @@
 
 (define list-env
   (list
-   (cons 'pair? (forall2 (lambda (tv1 tv2)
+   (pair 'pair? (forall2 (lambda (tv1 tv2)
 			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
-   (cons 'null? (forall2 (lambda (tv1 tv2)
+   (pair 'null? (forall2 (lambda (tv1 tv2)
 			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
-   (cons 'list? (forall2 (lambda (tv1 tv2)
+   (pair 'list? (forall2 (lambda (tv1 tv2)
 			   (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				      (boolean)))))
-   (cons 'cons (forall2 (lambda (tv1 tv2)
+   (pair 'cons (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars (list tv1 tv2))
 				     (pair_ tv1 tv2)))))
-   (cons 'car (forall2 (lambda (tv1 tv2)
+   (pair 'car (forall2 (lambda (tv1 tv2)
 			 (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				    tv1))))
-   (cons 'cdr (forall2 (lambda (tv1 tv2)
+   (pair 'cdr (forall2 (lambda (tv1 tv2)
 			 (procedure (convert-tvars (list (pair_ tv1 tv2)))
 				    tv2))))
-   (cons 'set-car! (forall2 (lambda (tv1 tv2)
+   (pair 'set-car! (forall2 (lambda (tv1 tv2)
 			      (procedure (convert-tvars (list (pair_ tv1 tv2)
 							      tv1))
 					 dynamic))))
-   (cons 'set-cdr! (forall2 (lambda (tv1 tv2)
+   (pair 'set-cdr! (forall2 (lambda (tv1 tv2)
 			      (procedure (convert-tvars (list (pair_ tv1 tv2)
 							      tv2))
 					 dynamic))))
-   (cons 'caar (forall3 (lambda (tv1 tv2 tv3)
+   (pair 'caar (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
 				      (list (pair_ (pair_ tv1 tv2) tv3)))
 				     tv1))))
-   (cons 'cdar (forall3 (lambda (tv1 tv2 tv3)
+   (pair 'cdar (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
 				      (list (pair_ (pair_ tv1 tv2) tv3)))
 				     tv2))))
 
-   (cons 'cadr (forall3 (lambda (tv1 tv2 tv3)
+   (pair 'cadr (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
 				      (list (pair_ tv1 (pair_ tv2 tv3))))
 				     tv2))))
-   (cons 'cddr (forall3 (lambda (tv1 tv2 tv3)
+   (pair 'cddr (forall3 (lambda (tv1 tv2 tv3)
 			  (procedure (convert-tvars
 				      (list (pair_ tv1 (pair_ tv2 tv3))))
 				     tv3))))
-   (cons 'caaar (forall4
+   (pair 'caaar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ (pair_ (pair_ tv1 tv2) tv3) tv4)))
 			      tv1))))
-   (cons 'cdaar (forall4
+   (pair 'cdaar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ (pair_ (pair_ tv1 tv2) tv3) tv4)))
 			      tv2))))
-   (cons 'cadar (forall4
+   (pair 'cadar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ (pair_ tv1 (pair_ tv2 tv3)) tv4)))
 			      tv2))))
-   (cons 'cddar (forall4
+   (pair 'cddar (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ (pair_ tv1 (pair_ tv2 tv3)) tv4)))
 			      tv3))))
-   (cons 'caadr (forall4
+   (pair 'caadr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ tv1 (pair_ (pair_ tv2 tv3) tv4))))
 			      tv2))))
-   (cons 'cdadr (forall4
+   (pair 'cdadr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ tv1 (pair_ (pair_ tv2 tv3) tv4))))
 			      tv3))))
-   (cons 'caddr (forall4
+   (pair 'caddr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ tv1 (pair_ tv2 (pair_ tv3 tv4)))))
 			      tv3))))
-   (cons 'cdddr (forall4
+   (pair 'cdddr (forall4
 		 (lambda (tv1 tv2 tv3 tv4)
 		   (procedure (convert-tvars
 			       (list (pair_ tv1 (pair_ tv2 (pair_ tv3 tv4)))))
 			      tv4))))
-   (cons 'cadddr
+   (pair 'cadddr
          (forall5 (lambda (tv1 tv2 tv3 tv4 tv5)
                     (procedure (convert-tvars
 				(list (pair_ tv1
@@ -2122,7 +2122,7 @@
 						  (pair_ tv3
 							(pair_ tv4 tv5))))))
 			       tv4))))
-   (cons 'cddddr
+   (pair 'cddddr
          (forall5 (lambda (tv1 tv2 tv3 tv4 tv5)
                     (procedure (convert-tvars
 				(list (pair_ tv1
@@ -2130,45 +2130,45 @@
 						  (pair_ tv3
 							(pair_ tv4 tv5))))))
 			       tv5))))
-   (cons 'list (forall (lambda (tv)
+   (pair 'list (forall (lambda (tv)
 			 (procedure tv tv))))
-   (cons 'length (forall (lambda (tv)
+   (pair 'length (forall (lambda (tv)
 			   (procedure (convert-tvars (list (list-type tv)))
 				      (number)))))
-   (cons 'append (forall (lambda (tv)
+   (pair 'append (forall (lambda (tv)
 			   (procedure (convert-tvars (list (list-type tv)
 							   (list-type tv)))
 				      (list-type tv)))))
-   (cons 'reverse (forall (lambda (tv)
+   (pair 'reverse (forall (lambda (tv)
 			    (procedure (convert-tvars (list (list-type tv)))
 				       (list-type tv)))))
-   (cons 'list-ref (forall (lambda (tv)
+   (pair 'list-ref (forall (lambda (tv)
 			     (procedure (convert-tvars (list (list-type tv)
 							     (number)))
 					tv))))
-   (cons 'memq (forall (lambda (tv)
+   (pair 'memq (forall (lambda (tv)
 			 (procedure (convert-tvars (list tv
 							 (list-type tv)))
 				    (boolean)))))
-   (cons 'memv (forall (lambda (tv)
+   (pair 'memv (forall (lambda (tv)
 			 (procedure (convert-tvars (list tv
 							 (list-type tv)))
 				    (boolean)))))
-   (cons 'member (forall (lambda (tv)
+   (pair 'member (forall (lambda (tv)
 			   (procedure (convert-tvars (list tv
 							   (list-type tv)))
 				      (boolean)))))
-   (cons 'assq (forall2 (lambda (tv1 tv2)
+   (pair 'assq (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars
 				      (list tv1
 					    (list-type (pair_ tv1 tv2))))
 				     (pair_ tv1 tv2)))))
-   (cons 'assv (forall2 (lambda (tv1 tv2)
+   (pair 'assv (forall2 (lambda (tv1 tv2)
 			  (procedure (convert-tvars
 				      (list tv1
 					    (list-type (pair_ tv1 tv2))))
 				     (pair_ tv1 tv2)))))
-   (cons 'assoc (forall2 (lambda (tv1 tv2)
+   (pair 'assoc (forall2 (lambda (tv1 tv2)
 			   (procedure (convert-tvars
 				       (list tv1
 					     (list-type (pair_ tv1 tv2))))
@@ -2178,55 +2178,55 @@
 
 (define symbol-env
   (list
-   (cons 'symbol? (forall (lambda (tv)
+   (pair 'symbol? (forall (lambda (tv)
 			    (procedure (convert-tvars (list tv)) (boolean)))))
-   (cons 'symbol->string (procedure (convert-tvars (list (symbol))) (charseq)))
-   (cons 'string->symbol (procedure (convert-tvars (list (charseq))) (symbol)))
+   (pair 'symbol->string (procedure (convert-tvars (list (symbol))) (charseq)))
+   (pair 'string->symbol (procedure (convert-tvars (list (charseq))) (symbol)))
    ))
 
 (define number-env
   (list
-   (cons 'number? (forall (lambda (tv)
+   (pair 'number? (forall (lambda (tv)
 			    (procedure (convert-tvars (list tv)) (boolean)))))
-   (cons '+ (procedure (convert-tvars (list (number) (number))) (number)))
-   (cons '- (procedure (convert-tvars (list (number) (number))) (number)))
-   (cons '* (procedure (convert-tvars (list (number) (number))) (number)))
-   (cons '/ (procedure (convert-tvars (list (number) (number))) (number)))
-   (cons 'number->string (procedure (convert-tvars (list (number))) (charseq)))
-   (cons 'string->number (procedure (convert-tvars (list (charseq))) (number)))
+   (pair '+ (procedure (convert-tvars (list (number) (number))) (number)))
+   (pair '- (procedure (convert-tvars (list (number) (number))) (number)))
+   (pair '* (procedure (convert-tvars (list (number) (number))) (number)))
+   (pair '/ (procedure (convert-tvars (list (number) (number))) (number)))
+   (pair 'number->string (procedure (convert-tvars (list (number))) (charseq)))
+   (pair 'string->number (procedure (convert-tvars (list (charseq))) (number)))
    ))
 
 (define char-env
   (list
-   (cons 'char? (forall (lambda (tv)
+   (pair 'char? (forall (lambda (tv)
 			  (procedure (convert-tvars (list tv)) (boolean)))))
-   (cons 'char->integer (procedure (convert-tvars (list (character)))
+   (pair 'char->integer (procedure (convert-tvars (list (character)))
                                    (number)))
-   (cons 'integer->char (procedure (convert-tvars (list (number)))
+   (pair 'integer->char (procedure (convert-tvars (list (number)))
                                    (character)))
    ))
 
 (define string-env
   (list
-   (cons 'string? (forall (lambda (tv)
+   (pair 'string? (forall (lambda (tv)
 			    (procedure (convert-tvars (list tv)) (boolean)))))
    ))
 
 (define vector-env
   (list
-   (cons 'vector? (forall (lambda (tv)
+   (pair 'vector? (forall (lambda (tv)
 			    (procedure (convert-tvars (list tv)) (boolean)))))
-   (cons 'make-vector (forall (lambda (tv)
+   (pair 'make-vector (forall (lambda (tv)
 				(procedure (convert-tvars (list (number)))
 					   (array tv)))))
-   (cons 'vector-length (forall (lambda (tv)
+   (pair 'vector-length (forall (lambda (tv)
 				  (procedure (convert-tvars (list (array tv)))
 					     (number)))))
-   (cons 'vector-ref (forall (lambda (tv)
+   (pair 'vector-ref (forall (lambda (tv)
 			       (procedure (convert-tvars (list (array tv)
 							       (number)))
 					  tv))))
-   (cons 'vector-set! (forall (lambda (tv)
+   (pair 'vector-set! (forall (lambda (tv)
 				(procedure (convert-tvars (list (array tv)
 								(number)
 								tv))
@@ -2235,21 +2235,21 @@
 
 (define procedure-env
   (list
-   (cons 'procedure? (forall (lambda (tv)
+   (pair 'procedure? (forall (lambda (tv)
 			       (procedure (convert-tvars (list tv)) (boolean)))))
-   (cons 'map (forall2 (lambda (tv1 tv2)
+   (pair 'map (forall2 (lambda (tv1 tv2)
 			 (procedure (convert-tvars
 				     (list (procedure (convert-tvars
 						       (list tv1)) tv2)
 					   (list-type tv1)))
 				    (list-type tv2)))))
-   (cons 'foreach (forall2 (lambda (tv1 tv2)
+   (pair 'foreach (forall2 (lambda (tv1 tv2)
 			     (procedure (convert-tvars
 					 (list (procedure (convert-tvars
 							   (list tv1)) tv2)
 					       (list-type tv1)))
 					(list-type tv2)))))
-   (cons 'call-with-current-continuation
+   (pair 'call-with-current-continuation
 	 (forall2 (lambda (tv1 tv2) 
 		   (procedure (convert-tvars
 			       (list (procedure
@@ -2284,8 +2284,8 @@
 (define (dynamic-top-level-env-show)
   ; displays the top level environment
   (map (lambda (binding)
-	 (cons (key-show (binding-key binding))
-	       (cons ': (tvar-show (binding-value binding)))))
+	 (pair (key-show (binding-key binding))
+	       (pair ': (tvar-show (binding-value binding)))))
        (env->list dynamic-top-level-env)))
 ; ----------------------------------------------------------------------------
 ; Dynamic type inference for Scheme
@@ -2317,7 +2317,7 @@
         (let ((form (read port)))
           (if (eof-object? form)
               (reverse forms)
-              (loop (cons form forms)))))
+              (loop (pair form forms)))))
       (loop '()))))
 
 (define (dynamic-parse-forms forms)
