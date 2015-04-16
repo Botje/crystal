@@ -148,7 +148,7 @@ generateSmart e@(Expr start _) = evalState (runReaderT (go e) main_env) (succ st
                                    let env'' = maybe env' (\x -> extend x (LVar a_r :*: TList :*: mempty) env') r
                                    (e_bod, t_bod, ef_bod) <- local (const env'') (goT bod)
                                    let t_lambda = case r of
-                                         Nothing -> TFun a_ids ef_bod t_bod
+                                         Nothing -> TFun a_ids ef_bod $ simplify t_bod
                                          Just _  ->
                                            -- TODO: checks on a_r will crash.
                                            let f tls cause | length tls < length ids = TError

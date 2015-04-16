@@ -1,7 +1,7 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, FlexibleContexts #-}
 module Crystal.Post (postprocess, DeclExpr) where
 
-import Control.Lens hiding (transform, universe)
+import Control.Lens hiding (transform, transformM, universe)
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Writer
@@ -33,7 +33,7 @@ undoLetrec expr = do addDefines <- not `fmap` asks (^.cfgAnnotateLabels)
         go e = ([], e)
 
 undoLetLet :: Expr TLabel -> Step (Expr TLabel)
-undoLetLet expr = do let (expr', ps) = runWriter $ transformBiM f expr
+undoLetLet expr = do let (expr', ps) = runWriter $ transformM f expr
                      let ps' = M.map (inline ps') ps
                      return $ inline ps' expr'
   where f e@(Expr l (Let [(id, app)] b)) =
