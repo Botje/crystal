@@ -130,7 +130,7 @@ if ($tex) {
 	local $\ = "\n";
 	chomp(@title);
 	chomp(@body);
-	print '\begin{tabular}{|r|c|c|c|l|}%';
+	print '\begin{tabular}[b]{|r|c|c|c|l|}%';
 	print '\hline';
 	print for @title;
 	print '\hline';
