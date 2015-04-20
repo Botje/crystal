@@ -279,7 +279,7 @@ eliminateRedundantChecks expr = do elim <- asks (^.cfgCheckSimplification)
                                                , t1 == t2 ]
           where sharedKeys = M.keysSet m1 `S.intersection` M.keysSet m2
 
-        -- With every type test τ? x, fix type of x to τ until next assignment.
+        -- With every type test t? x, fix type of x to t until next assignment.
         walk :: Expr CheckedLabel -> StateT CachedTypes (State ChecksMap) ()
         walk (Expr _ (Lit _)) = return ()
         walk (Expr _ (Ref _)) = return ()
