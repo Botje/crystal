@@ -24,7 +24,6 @@ import Test.QuickCheck
 import Text.Show
 import Text.PrettyPrint
 
-import Crystal.Trace
 import Crystal.Tuple
 import Crystal.Type
 
