@@ -34,18 +34,17 @@ traced f x | otherwise = x
 
 solveLetrec :: [(TVar, Type)] -> [(TVar, Type)]
 solveLetrec tts' = traced (\_ -> "Input: " ++ show tts) $
-                     traced (\out -> "Output: " ++ show out) $ return
-  where go n expns = let expns' = [ (tv, simplifyPlus True ex')
+                     traced (\out -> "Output: " ++ show out) $ 
+                       go 0 [ (tv, TFun vars ef TError) | (tv, TFun vars ef _) <- tts ]
+  where tts = map (second (simplifyPlus True . approximate allowed)) tts'
+        allowed = S.fromList $ map fst tts
+        go n expns = let expns' = [ (tv, simplifyPlus True ex')
                                   | (tv, tt) <- tts
                                   , let ex' = fillIn tt expns]
                      in if expns == expns'
                            then expns'
                            else go (n+1) $ traced (\out -> "Iter " ++ show n ++ ": " ++ show out) expns'
         fillIn tt expns = replace (M.fromList [ (v, LSyn :*: t) | (v,t) <- expns]) tt
-        return = go 0 [ (tv, TFun vars ef TError) | (tv, TFun vars ef _) <- tts ]
-        tts = map (second (simplifyPlus True . approximate')) tts'
-        letrecFns = map fst tts'
-        approximate' = approximate (S.fromList letrecFns)
 
 approximate :: S.Set TVar -> Type -> Type
 approximate allowed = transform f
