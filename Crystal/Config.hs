@@ -17,7 +17,8 @@ data Config =
            _cfgDumpTypes :: Bool,
            _cfgDumpTree  :: Bool,
            _cfgDumpImmediately :: Bool,
-           _cfgAnnotateLabels :: Bool
+           _cfgAnnotateLabels :: Bool,
+           _cfgMutate :: Bool
          } deriving (Show, Eq, Data, Typeable)
 
 $(makeLenses ''Config)
@@ -38,4 +39,6 @@ defaultArgs = Config { _cfgTypeSys   = enum [ Smart &= help "Smart type system" 
                                              True  &= help "Dump results immediately" &= name "i" &= explicit ]
                      , _cfgAnnotateLabels = enum [ False &= ignore,
                                                    True &= help "Annotate expressions with labels" &= name "@" &= explicit ]
+                     , _cfgMutate = enum [ False &= name "no-mutate" &= ignore,
+                                           True &= help "Mutate program before performing blame prediction" &= name "mutate" &= explicit]
                      }

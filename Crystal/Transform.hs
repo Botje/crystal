@@ -3,8 +3,9 @@ module Crystal.Transform (transformC) where
 
 import Control.Arrow
 import Control.Applicative
-import Control.Lens
+import Control.Lens hiding (transformM)
 import Control.Monad
+import Control.Monad.RWS
 import Control.Monad.RWS
 import Control.Monad.State
 import Control.Monad.Writer
@@ -14,7 +15,9 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text.Lazy as T
 import Data.Generics.Uniplate.Operations
+import System.Random hiding (next)
 
 import Crystal.AST
 import Crystal.Config
@@ -25,9 +28,9 @@ import Crystal.Pretty
 import Crystal.Seq
 
 transformC :: Expr Label -> Step (Expr Label)
-transformC = maybeDumpTree <=< denestLet <=< toANF <=< expandMacros <=< flattenLets <=< splitLetRecs <=< alphaRename
+transformC = maybeDumpTree <=< denestLet <=< toANF <=< expandMacros <=< maybeMutate <=< flattenLets <=< splitLetRecs <=< alphaRename
 
-alphaRename, splitLetRecs, flattenLets, expandMacros, toANF, denestLet, maybeDumpTree :: Expr Label -> Step (Expr Label)
+alphaRename, splitLetRecs, flattenLets, maybeMutate, expandMacros, toANF, denestLet, maybeDumpTree :: Expr Label -> Step (Expr Label)
 
 maybeDumpTree expr =
   do dump <- asks (^.cfgDumpTree)
@@ -148,6 +151,81 @@ flattenLets expr@(Expr start _) = return $ evalState (transformBiM f expr >>= up
         f x = return x
 
 type Idents = S.Set Ident
+
+type Mutation a = RWST (M.Map Label Idents) [String] Int IO a
+
+mutations :: [ Expr Label -> Mutation (Expr Label) ]
+mutations = [ swapIf >=> swapRef , swapRef >=> swapIf ]
+
+consumeFuel :: Mutation ()
+consumeFuel = modify (subtract 1)
+
+genericMut :: (Expr Label -> Mutation (Expr Label)) -> Expr Label -> Mutation (Expr Label)
+genericMut mut = transformM go
+  where go e = do fuel <- get
+                  if fuel == 0
+                     then return e
+                     else mut e
+
+swapIf :: Expr Label -> Mutation (Expr Label)
+swapIf = genericMut si
+  where si :: Expr Label -> Mutation (Expr Label)
+        si e@(Expr l (If cond cons alt)) = 
+           do roll <- liftIO (randomIO :: IO Float)
+              if roll <= 0.01
+                 then do consumeFuel
+                         tell ["Swapped if branches at " ++ show l]
+                         return $ Expr l (If cond alt cons)
+                 else return e
+        si other = return other
+
+swapRef :: Expr Label -> Mutation (Expr Label)
+swapRef = genericMut sr
+  where sr :: Expr Label -> Mutation (Expr Label)
+        sr e@(Expr l (Ref r)) =
+          do roll <- liftIO (randomIO :: IO Float)
+             Just bvs <- fmap (S.delete r) `fmap` asks (M.lookup l)
+             if roll <= 0.01 && not (S.null bvs)
+                then do consumeFuel
+                        idx <- liftIO $ randomRIO (0, S.size bvs - 1)
+                        let r' = S.elemAt idx bvs
+                        tell ["Changed " ++ r ++ " to " ++ r' ++ " at " ++ show l]
+                        return $ Expr l (Ref r')
+                else return e
+        sr other = return other
+
+runMutation :: Mutation (Expr Label) -> Int -> M.Map Label Idents -> Step (Expr Label)
+runMutation mut fuel bvs =
+  do (tree, fuel', rep) <- liftIO $ runRWST mut bvs fuel
+     if fuel == fuel'
+        then runMutation mut fuel bvs
+        else do report "Mutation" $ T.unlines $ map T.pack rep
+                return tree
+
+
+boundVariables :: Expr Label -> M.Map Label Idents
+boundVariables expr = execState (go S.empty expr) M.empty
+  where go bvs (Expr l ie) = 
+          do modify (M.insert l bvs)
+             case ie of
+                Lit    lv               -> return ()
+                Ref    r                -> return ()
+                Appl   f args           -> mapM_ (go bvs) (f:args)
+                If     cond cons alt    -> mapM_ (go bvs) [cond, cons, alt]
+                Let    [(nam, exp)] bod -> go bvs exp >> go (S.insert nam bvs) bod
+                LetRec bnds bod         -> do let bvs' = S.fromList (map fst bnds) `S.union` bvs
+                                              mapM_ (go bvs') (bod : map snd bnds)
+                Lambda args r bod       -> do let bvs' = S.fromList (maybeToList r ++ args) `S.union` bvs
+                                              go bvs' bod
+                Begin  es               -> mapM_ (go bvs) es
+
+maybeMutate expr = do mutate <- asks (^.cfgMutate)
+                      if mutate
+                         then do choice <- liftIO $ randomRIO (0,length mutations - 1)
+                                 let mut = mutations !! choice
+                                 let fuel = 1
+                                 runMutation (mut expr) fuel (boundVariables expr)
+                         else return expr
 
 splitLetRecs expr@(Expr start _) = return $ evalState (transformBiM f expr >>= updateRootLabel) (succ start)
   where f :: Expr Label -> State Label (Expr Label)
