@@ -72,6 +72,10 @@ generateDumb e = go e
                        Expr l_arg (Ref r) = var
                        var' = Expr (LSource l_arg :*: TAny :*: emptyEffect) (Ref r)
                    in Expr (l' :*: TAny :*: emptyEffect) (Appl op' [var', go arg])
+                 Appl op [thunk] | Expr l_op (Ref "time") <- op ->
+                   let op'  = Expr (LSource l_op :*: TAny :*: emptyEffect) (Ref "time")
+                       thunk' = go thunk
+                   in Expr (l' :*: TAny :*: emptyEffect) (Appl op' [thunk'])
                  Appl op args ->
                   let (op_, args_) = (go op, map go args)
                       (Expr (l_r :*: _) (Ref r)) = op_
