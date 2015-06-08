@@ -11,6 +11,7 @@
 (require (prefix-in r5rs: r5rs))
 
 (define *global-env* '())
+(define *timeout* 3600)
 
 (define *evaluating-predicate* (make-parameter #f))
 (define *counting-distance* (make-parameter #f))
@@ -23,6 +24,7 @@
 (define *check-count* 0)
 (define *counting-checks* (make-parameter #f))
 (define *report-timings* (make-parameter #f))
+(define *report-time-to-fail* (make-parameter #f))
 
 (struct binding 
   (name
@@ -61,6 +63,27 @@
       (eval (car stmts) env)
       (begin (eval (car stmts) env)
              (eval-begin (cdr stmts) env))))
+
+(define (extract-names stmts nams)
+  (match (car stmts)
+    [(list 'define (list nam args ...) bod ..1)
+     (extract-names (cdr stmts) (cons nam nams))]
+    [(list 'define nam _)
+     (extract-names (cdr stmts) (cons nam nams))]
+    [_ (reverse nams)]))
+
+(define (eval-begin-defines stmts env)
+  (let ([names (extract-names stmts '())])
+    (set! env (append (map (lambda (name) (new-binding name #f)) names) env))
+    (for ([nam (in-list names)]
+          [stmt (in-list stmts)])
+       (let ((cell (assocm nam env)))
+         (match stmt
+           [(list 'define (list nam args ...) bod ..1)
+            (set-binding-value! cell (create-named-function nam args bod env))]
+           [(list 'define nam val)
+            (set-binding-value! cell (eval val env))])))
+    (eval (last stmts) env)))
 
 (define (eval-let binds body env)
   (let* ([nams (map car binds)]
@@ -145,18 +168,18 @@
 
 (define (report-tick-for lab env vars)
   (when (*counting-distance*)
-		(for ([var (in-list vars)]
-					#:when (symbol? var)
-					[cell (in-value (assocm var env))]
-					#:when cell
-					[labs (in-value (binding-check-labs cell))]
-					#:when (set? labs))
-			(set-binding-use-time! cell *tick-count*)
-			(let ([fun (binding-function cell)]
-						[def (binding-def-time cell)]
-						[check (binding-check-time cell)]
-						[use (binding-use-time cell)]) 
-			(eprintf "~a ~a ~a ~a~%" fun var (- use def) (- check def))))))
+    (for ([var (in-list vars)]
+          #:when (symbol? var)
+          [cell (in-value (assocm var env))]
+          #:when cell
+          [labs (in-value (binding-check-labs cell))]
+          #:when (set? labs))
+      (set-binding-use-time! cell *tick-count*)
+      (let ([fun (binding-function cell)]
+            [def (binding-def-time cell)]
+            [check (binding-check-time cell)]
+            [use (binding-use-time cell)]) 
+      (eprintf "~a ~a ~a ~a~%" fun var (- use def) (- check def))))))
 
 (define (to-mutable v)
     (cond
@@ -204,6 +227,8 @@
      (void)]
     [(list 'begin exps ..1)
      (eval-begin exps env)]
+    [(list 'begin-defines exps ..1)
+     (eval-begin-defines exps env)]
     [(list '@ lab fun args ...)
      (report-tick-for lab env (cons fun args))
      (let ([fval (eval fun env)]
@@ -480,29 +505,41 @@
        ))
 
 (define (start-eval exp)
-  (call-with-values
-    (thunk (time-apply eval (list exp *global-env*)))
-    (lambda (ret cpu real gc)
-      (when (*counting-checks*)
-        (eprintf "~a\t" *check-count*))
-      (when (*report-timings*)
-        (eprintf "~a\t" cpu))
-      (when (or (*counting-checks*) (*report-timings*))
-				(eprintf "~%")))))
+  (define main-thread (current-thread))
+  (thread (thunk (sleep *timeout*) (eprintf "TIMEOUT~%DNF\t~%") (kill-thread main-thread)))
+  (call-with-exception-handler
+    (lambda (v)
+      (when (*report-time-to-fail*)
+        (eprintf "ERROR~%~a\t~%" *check-count*))
+      v)
+    (thunk
+      (call-with-values
+        (thunk (time-apply eval (list `(begin-defines ,@exp) *global-env*)))
+        (lambda (ret cpu real gc)
+          (when (*report-time-to-fail*)
+            (eprintf "SUCCESS~%"))
+          (when (*counting-checks*)
+            (eprintf "~a\t" *check-count*))
+          (when (*report-timings*)
+            (eprintf "~a\t" cpu))
+          (when (or (*counting-checks*) (*report-timings*))
+            (eprintf "~%")))))))
 
 
-(define (read-code l)
-  (if (null? l)
-    (read)
-    (with-input-from-file (car l) (thunk (read)))))
+(define (read-code)
+  (let ([x (read)])
+    (if (eof-object? x)
+      '()
+      (cons x (read-code)))))
 
 (provide main)
 (define (main . args)
   (command-line
     #:program "eval"
     #:once-each
+    [("-f" "--time-to-fail") "Report time to fail (implies \"Count checks\")" (*counting-checks* #t) (*report-time-to-fail* #t)]
     [("-t" "--timings") "Report timings" (*report-timings* #t)]
     [("-c" "--count-checks") "Report number of checks made" (*counting-checks* #t)]
     [("-d" "--count-distance") "Report define--check and check--use distance" (*counting-distance* #t)]
-    #:args args
-    (start-eval (read-code args))))
+    #:args l
+    (start-eval (if (null? l) (read-code) (with-input-from-file (car l) (thunk (read-code)))))))
