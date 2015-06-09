@@ -22,6 +22,7 @@
     (set! *tick-count* (+ *tick-count* 1))))
 
 (define *check-count* 0)
+(define *enable-checks* (make-parameter #t))
 (define *counting-checks* (make-parameter #f))
 (define *report-timings* (make-parameter #f))
 (define *report-time-to-fail* (make-parameter #f))
@@ -213,7 +214,7 @@
      (parameterize [(*evaluating-predicate* #t)]
        (when (*counting-checks*)
          (set! *check-count* (+ *check-count* 1)))
-       (unless (eval-predicate pred env)
+       (when (and (*enable-checks*) (not (eval-predicate pred env)))
          (let* ([vars (find-vars-in-pred pred)]
                 [pairs (flatten (map (lambda (var) (list (symbol->string var) (lookup-variable var env))) vars))])
            (apply raise-arguments-error 'check  (format "Check failed: ~a" pred) pairs))))
@@ -541,5 +542,6 @@
     [("-t" "--timings") "Report timings" (*report-timings* #t)]
     [("-c" "--count-checks") "Report number of checks made" (*counting-checks* #t)]
     [("-d" "--count-distance") "Report define--check and check--use distance" (*counting-distance* #t)]
+    [("--nc") "Disable checks" (*enable-checks* #f)]
     #:args l
     (start-eval (if (null? l) (read-code) (with-input-from-file (car l) (thunk (read-code)))))))
