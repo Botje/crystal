@@ -506,18 +506,18 @@
 
 (define (start-eval exp)
   (define main-thread (current-thread))
-  (thread (thunk (sleep *timeout*) (eprintf "TIMEOUT~%DNF\t~%") (kill-thread main-thread)))
+  (thread (thunk (sleep *timeout*) (eprintf "TIMEOUT\tDNF~%") (kill-thread main-thread)))
   (call-with-exception-handler
     (lambda (v)
       (when (*report-time-to-fail*)
-        (eprintf "ERROR~%~a\t~%" *check-count*))
+        (eprintf "ERROR\t~a~%" *tick-count*))
       v)
     (thunk
       (call-with-values
         (thunk (time-apply eval (list `(begin-defines ,@exp) *global-env*)))
         (lambda (ret cpu real gc)
           (when (*report-time-to-fail*)
-            (eprintf "SUCCESS~%"))
+            (eprintf "SUCCESS\t~a~%" *tick-count*))
           (when (*counting-checks*)
             (eprintf "~a\t" *check-count*))
           (when (*report-timings*)
