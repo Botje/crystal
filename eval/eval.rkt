@@ -216,7 +216,7 @@
          (set! *check-count* (+ *check-count* 1)))
        (when (and (*enable-checks*) (not (eval-predicate pred env)))
          (let* ([vars (find-vars-in-pred pred)]
-                [pairs (flatten (map (lambda (var) (list (symbol->string var) (lookup-variable var env))) vars))])
+                [pairs (foldr (lambda (var rest) (append (list (symbol->string var) (lookup-variable var env)) rest)) '() vars)])
            (apply raise-arguments-error 'check  (format "Check failed: ~a" pred) pairs))))
      (eval-begin exps env)]
     [(list 'time exps ...)
