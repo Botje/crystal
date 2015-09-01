@@ -11,7 +11,11 @@
 (require (prefix-in r5rs: r5rs))
 
 (define *global-env* '())
-(define *timeout* 3600)
+(define *timeout*
+	(let ([timeout-env (getenv "TIMEOUT")])
+		(if timeout-env
+			(string->number timeout-env)
+			3600)))
 
 (define *evaluating-predicate* (make-parameter #f))
 (define *counting-distance* (make-parameter #f))
